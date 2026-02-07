@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thucydides Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0a0f;
+    --bg-card: #12121a;
+    --bg-elevated: #1a1a26;
+    --border: #2a2a3a;
+    --border-glow: #3a3a5a;
+    --text: #e0e0ec;
+    --text-dim: #8888a0;
+    --text-bright: #ffffff;
+    --accent-gold: #d4a843;
+    --accent-gold-dim: #8a7030;
+    --accent-blue: #4a8fd4;
+    --accent-blue-dim: #2a4f7a;
+    --accent-green: #4ad49f;
+    --accent-green-dim: #2a7a5a;
+    --accent-red: #d44a4a;
+    --accent-red-dim: #7a2a2a;
+    --accent-purple: #9a6ad4;
+    --accent-purple-dim: #5a3a7a;
+    --accent-orange: #d48a4a;
+    --accent-orange-dim: #7a5a2a;
+    --accent-cyan: #4abbd4;
+    --accent-cyan-dim: #2a6a7a;
+
+    --scholar-color: #4a8fd4;
+    --digger-color: #d48a4a;
+    --archivist-color: #d4a843;
+    --jester-color: #d44a4a;
+    --judge-color: #9a6ad4;
+    --thuc-color: #4ad49f;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .header h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: var(--thuc-color);
+    text-shadow: 0 0 40px rgba(74, 212, 159, 0.3);
+    margin-bottom: 8px;
+  }
+
+  .header .subtitle {
+    font-size: 14px;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .header .tagline {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 12px;
+    font-style: italic;
+    opacity: 0.7;
+  }
+
+  /* Architecture canvas */
+  .arch-canvas {
+    position: relative;
+    width: 100%;
+  }
+
+  /* SVG flow lines */
+  .flow-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .flow-line {
+    stroke-width: 2;
+    fill: none;
+    opacity: 0.4;
+    transition: opacity 0.3s;
+  }
+
+  .flow-line.active {
+    opacity: 0.9;
+    stroke-width: 3;
+  }
+
+  .flow-arrow {
+    fill-opacity: 0.5;
+    transition: fill-opacity 0.3s;
+  }
+
+  .flow-arrow.active {
+    fill-opacity: 1;
+  }
+
+  /* SIRK Loop */
+  .sirk-section {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+
+  .sirk-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+
+  .sirk-label .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--thuc-color);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.3); }
+  }
+
+  /* Orchestrator */
+  .orchestrator {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 48px;
+  }
+
+  .orch-card {
+    background: var(--bg-card);
+    border: 2px solid var(--thuc-color);
+    border-radius: 16px;
+    padding: 28px 48px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    max-width: 520px;
+    width: 100%;
+    box-shadow: 0 0 30px rgba(74, 212, 159, 0.08);
+  }
+
+  .orch-card:hover {
+    border-color: var(--thuc-color);
+    box-shadow: 0 0 60px rgba(74, 212, 159, 0.15);
+    transform: translateY(-2px);
+  }
+
+  .orch-card.selected {
+    border-color: var(--thuc-color);
+    box-shadow: 0 0 60px rgba(74, 212, 159, 0.2);
+  }
+
+  .orch-role {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--thuc-color);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .orch-name {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text-bright);
+    margin-bottom: 4px;
+  }
+
+  .orch-model {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  .orch-desc {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  .click-hint {
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--text-dim);
+    background: var(--bg);
+    padding: 2px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    opacity: 0.6;
+  }
+
+  /* Flow direction indicator */
+  .flow-indicator {
+    text-align: center;
+    margin: 20px 0;
+    position: relative;
+  }
+
+  .flow-indicator .arrow-down {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-dim);
+    opacity: 0.4;
+  }
+
+  .flow-indicator .arrow-down span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .flow-indicator .arrow-down svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Phase labels */
+  .phase-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 32px 0 20px;
+    padding: 0 8px;
+  }
+
+  .phase-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--thuc-color);
+    background: rgba(74, 212, 159, 0.08);
+    padding: 4px 10px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+    border: 1px solid rgba(74, 212, 159, 0.15);
+    white-space: nowrap;
+  }
+
+  .phase-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 1px;
+  }
+
+  .phase-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Agent Grid */
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .agent-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .agent-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    opacity: 0.6;
+    transition: opacity 0.3s;
+  }
+
+  .agent-card:hover::before,
+  .agent-card.selected::before {
+    opacity: 1;
+  }
+
+  .agent-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-glow);
+  }
+
+  .agent-card.selected {
+    border-color: var(--border-glow);
+  }
+
+  /* Agent colors */
+  .agent-card.scholar::before { background: var(--scholar-color); }
+  .agent-card.scholar.selected { border-color: var(--scholar-color); box-shadow: 0 0 30px rgba(74, 143, 212, 0.12); }
+  .agent-card.digger::before { background: var(--digger-color); }
+  .agent-card.digger.selected { border-color: var(--digger-color); box-shadow: 0 0 30px rgba(212, 138, 74, 0.12); }
+  .agent-card.archivist::before { background: var(--archivist-color); }
+  .agent-card.archivist.selected { border-color: var(--archivist-color); box-shadow: 0 0 30px rgba(212, 168, 67, 0.12); }
+  .agent-card.jester::before { background: var(--jester-color); }
+  .agent-card.jester.selected { border-color: var(--jester-color); box-shadow: 0 0 30px rgba(212, 74, 74, 0.12); }
+  .agent-card.judge::before { background: var(--judge-color); }
+  .agent-card.judge.selected { border-color: var(--judge-color); box-shadow: 0 0 30px rgba(154, 106, 212, 0.12); }
+
+  .agent-icon {
+    font-size: 28px;
+    margin-bottom: 10px;
+  }
+
+  .agent-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-bright);
+    margin-bottom: 4px;
+  }
+
+  .agent-role {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .agent-card.scholar .agent-role { color: var(--scholar-color); }
+  .agent-card.digger .agent-role { color: var(--digger-color); }
+  .agent-card.archivist .agent-role { color: var(--archivist-color); }
+  .agent-card.jester .agent-role { color: var(--jester-color); }
+  .agent-card.judge .agent-role { color: var(--judge-color); }
+
+  .agent-brief {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  .agent-tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+    margin-top: 10px;
+  }
+
+  .agent-card.scholar .agent-tag { color: var(--scholar-color); background: rgba(74, 143, 212, 0.1); border: 1px solid rgba(74, 143, 212, 0.2); }
+  .agent-card.digger .agent-tag { color: var(--digger-color); background: rgba(212, 138, 74, 0.1); border: 1px solid rgba(212, 138, 74, 0.2); }
+  .agent-card.archivist .agent-tag { color: var(--archivist-color); background: rgba(212, 168, 67, 0.1); border: 1px solid rgba(212, 168, 67, 0.2); }
+  .agent-card.jester .agent-tag { color: var(--jester-color); background: rgba(212, 74, 74, 0.1); border: 1px solid rgba(212, 74, 74, 0.2); }
+  .agent-card.judge .agent-tag { color: var(--judge-color); background: rgba(154, 106, 212, 0.1); border: 1px solid rgba(154, 106, 212, 0.2); }
+
+  /* Challenge agents row */
+  .challenge-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    max-width: 700px;
+    margin: 0 auto 16px;
+  }
+
+  /* Conditional deployment note */
+  .conditional-note {
+    text-align: center;
+    margin: -4px 0 16px;
+  }
+
+  .conditional-note span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    opacity: 0.5;
+    letter-spacing: 1px;
+  }
+
+  /* Data stores */
+  .data-stores {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .data-store {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .data-store:hover {
+    border-color: var(--border-glow);
+    transform: translateY(-1px);
+  }
+
+  .data-store.selected {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 30px rgba(74, 187, 212, 0.1);
+  }
+
+  .store-icon {
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+
+  .store-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-bright);
+    margin-bottom: 2px;
+  }
+
+  .store-type {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent-cyan);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .store-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.4;
+  }
+
+  .store-tables {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 10px;
+  }
+
+  .store-table-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(74, 187, 212, 0.08);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(74, 187, 212, 0.15);
+  }
+
+  /* Shift Strategy */
+  .shift-section {
+    margin-top: 48px;
+  }
+
+  .shift-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+  }
+
+  .shift-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+  }
+
+  .shift-card:hover {
+    border-color: var(--thuc-color);
+    transform: translateY(-2px);
+  }
+
+  .shift-card.selected {
+    border-color: var(--thuc-color);
+    box-shadow: 0 0 20px rgba(74, 212, 159, 0.1);
+  }
+
+  .shift-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--thuc-color);
+    margin-bottom: 4px;
+  }
+
+  .shift-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .shift-brief {
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.3;
+  }
+
+  /* Detail Panel */
+  .detail-panel {
+    position: fixed;
+    top: 0;
+    right: -560px;
+    width: 540px;
+    height: 100vh;
+    background: var(--bg-card);
+    border-left: 1px solid var(--border);
+    z-index: 100;
+    transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow-y: auto;
+    box-shadow: -20px 0 60px rgba(0,0,0,0.5);
+  }
+
+  .detail-panel.open {
+    right: 0;
+  }
+
+  .detail-header {
+    position: sticky;
+    top: 0;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 2;
+  }
+
+  .detail-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .detail-icon {
+    font-size: 28px;
+  }
+
+  .detail-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-bright);
+  }
+
+  .detail-subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .detail-close {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-size: 16px;
+  }
+
+  .detail-close:hover {
+    background: var(--bg-elevated);
+    color: var(--text);
+  }
+
+  .detail-body {
+    padding: 24px;
+  }
+
+  .detail-section {
+    margin-bottom: 24px;
+  }
+
+  .detail-section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .detail-text {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.7;
+  }
+
+  .detail-list {
+    list-style: none;
+    padding: 0;
+  }
+
+  .detail-list li {
+    font-size: 13px;
+    color: var(--text);
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    display: flex;
+    gap: 8px;
+    line-height: 1.5;
+  }
+
+  .detail-list li::before {
+    content: '\2022';
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
+  .detail-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    color: var(--text);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-x: auto;
+  }
+
+  .detail-tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin: 2px;
+    letter-spacing: 1px;
+  }
+
+  .tag-source {
+    color: var(--accent-blue);
+    background: rgba(74, 143, 212, 0.1);
+    border: 1px solid rgba(74, 143, 212, 0.2);
+  }
+
+  .tag-output {
+    color: var(--accent-green);
+    background: rgba(74, 212, 159, 0.1);
+    border: 1px solid rgba(74, 212, 159, 0.2);
+  }
+
+  .tag-severity {
+    color: var(--accent-red);
+    background: rgba(212, 74, 74, 0.1);
+    border: 1px solid rgba(212, 74, 74, 0.2);
+  }
+
+  .tag-hierarchy {
+    color: var(--accent-purple);
+    background: rgba(154, 106, 212, 0.1);
+    border: 1px solid rgba(154, 106, 212, 0.2);
+  }
+
+  /* Overlay for panel */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 99;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  .overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Confidence scale */
+  .confidence-scale {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .conf-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+  }
+
+  .conf-bar {
+    width: 60px;
+    height: 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .conf-range {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    width: 55px;
+    flex-shrink: 0;
+  }
+
+  .conf-desc {
+    color: var(--text);
+    font-size: 12px;
+  }
+
+  /* Flow animation */
+  @keyframes flowPulse {
+    0% { stroke-dashoffset: 20; }
+    100% { stroke-dashoffset: 0; }
+  }
+
+  .flow-animated {
+    stroke-dasharray: 8 4;
+    animation: flowPulse 1s linear infinite;
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .agent-grid { grid-template-columns: 1fr; }
+    .challenge-grid { grid-template-columns: 1fr; }
+    .data-stores { grid-template-columns: 1fr; }
+    .shift-grid { grid-template-columns: repeat(3, 1fr); }
+    .detail-panel { width: 100%; right: -100%; }
+  }
+
+  /* Return format preview */
+  .return-format {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.8;
+    color: var(--text-dim);
+  }
+
+  .return-format .keyword {
+    font-weight: 600;
+  }
+
+  .return-format .pipe {
+    color: var(--text-dim);
+    opacity: 0.4;
+  }
+
+  /* Parallel badge */
+  .parallel-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--accent-green);
+    background: rgba(74, 212, 159, 0.08);
+    border: 1px solid rgba(74, 212, 159, 0.15);
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+  }
+
+  .parallel-badge .par-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <h1>Thucydides</h1>
+    <div class="subtitle">Multi-Agent Research Orchestration Platform</div>
+    <div class="tagline">Sequential Instance Relay Knowledge (SIRK) Architecture</div>
+  </div>
+
+  <!-- SIRK Label -->
+  <div class="sirk-section">
+    <div class="sirk-label">
+      <div class="dot"></div>
+      <span>SIRK LOOP &mdash; ONE OPUS INSTANCE PER SHIFT &mdash; SEQUENTIAL HANDOFFS</span>
+      <div class="dot"></div>
+    </div>
+  </div>
+
+  <!-- Orchestrator -->
+  <div class="orchestrator">
+    <div class="orch-card" onclick="showDetail('thucydides')">
+      <div class="orch-role">Orchestrator</div>
+      <div class="orch-name">Thucydides</div>
+      <div class="orch-model">Opus 4.6 &mdash; IS the SIRK instance</div>
+      <div class="orch-desc">Reads previous handoff, deploys research agents, processes findings, challenges claims, writes to database, hands off to next shift</div>
+      <div class="click-hint">click for details</div>
+    </div>
+  </div>
+
+  <!-- Phase 1: Research -->
+  <div class="phase-label">
+    <div class="phase-num">PHASE 1</div>
+    <div class="phase-title">Research Deployment</div>
+    <span class="parallel-badge"><span class="par-dot"></span>PARALLEL</span>
+    <div class="phase-line"></div>
+  </div>
+
+  <div class="agent-grid">
+    <div class="agent-card scholar" onclick="showDetail('scholar')">
+      <div class="agent-icon">&#x1F393;</div>
+      <div class="agent-name">Scholar</div>
+      <div class="agent-role">Academic Research</div>
+      <div class="agent-brief">Formal, peer-reviewed, officially published sources. Citation-obsessed. Reports what evidence says, doesn't speculate.</div>
+      <div class="agent-tag">VIA TASK TOOL</div>
+    </div>
+    <div class="agent-card digger" onclick="showDetail('digger')">
+      <div class="agent-icon">&#x26CF;&#xFE0F;</div>
+      <div class="agent-name">Digger</div>
+      <div class="agent-role">Unconventional Sources</div>
+      <div class="agent-brief">Forums, blogs, oral histories, the corners of the internet. Finds what's NOT in the official story.</div>
+      <div class="agent-tag">VIA TASK TOOL</div>
+    </div>
+    <div class="agent-card archivist" onclick="showDetail('archivist')">
+      <div class="agent-icon">&#x1F4DC;</div>
+      <div class="agent-name">Archivist</div>
+      <div class="agent-role">Historical Primary Sources</div>
+      <div class="agent-brief">Contemporary accounts, declassified docs, trade publications. What was reported AT THE TIME, before narratives got cleaned up.</div>
+      <div class="agent-tag">VIA TASK TOOL</div>
+    </div>
+  </div>
+
+  <!-- Phase 2: Challenge -->
+  <div class="phase-label">
+    <div class="phase-num">PHASE 2</div>
+    <div class="phase-title">Challenge & Validate</div>
+    <div class="phase-line"></div>
+  </div>
+
+  <div class="challenge-grid">
+    <div class="agent-card jester" onclick="showDetail('jester')">
+      <div class="agent-icon">&#x1F3AD;</div>
+      <div class="agent-name">Jester</div>
+      <div class="agent-role">Adversarial Critic</div>
+      <div class="agent-brief">Stress-tests claims. Finds logical flaws, missing evidence, confirmation bias. The defense attorney where truth is the client.</div>
+      <div class="agent-tag">ALWAYS DEPLOYED</div>
+    </div>
+    <div class="agent-card judge" onclick="showDetail('judge')">
+      <div class="agent-icon">&#x2696;&#xFE0F;</div>
+      <div class="agent-name">Judge</div>
+      <div class="agent-role">Evidence Evaluator</div>
+      <div class="agent-brief">Weighs conflicting evidence, assesses source reliability, renders verdicts. Called when Jester raises serious challenges.</div>
+      <div class="agent-tag">CONDITIONAL</div>
+    </div>
+  </div>
+
+  <div class="conditional-note">
+    <span>Judge deployed when Jester returns SERIOUS or CRITICAL challenges</span>
+  </div>
+
+  <!-- Phase 3: Persist -->
+  <div class="phase-label">
+    <div class="phase-num">PHASE 3</div>
+    <div class="phase-title">Persist & Handoff</div>
+    <div class="phase-line"></div>
+  </div>
+
+  <div class="data-stores">
+    <div class="data-store" onclick="showDetail('postgres')">
+      <div class="store-icon">&#x1F5C4;&#xFE0F;</div>
+      <div class="store-name">PostgreSQL</div>
+      <div class="store-type">Structured Findings</div>
+      <div class="store-desc">Validated entities, relationships, sources, and provenance chains. The knowledge graph.</div>
+      <div class="store-tables">
+        <span class="store-table-tag">entities</span>
+        <span class="store-table-tag">relationships</span>
+        <span class="store-table-tag">sources</span>
+        <span class="store-table-tag">entity_sources</span>
+        <span class="store-table-tag">threads</span>
+        <span class="store-table-tag">shift_reports</span>
+        <span class="store-table-tag">cross_connections</span>
+      </div>
+    </div>
+    <div class="data-store" onclick="showDetail('mandrel')">
+      <div class="store-icon">&#x1F4E1;</div>
+      <div class="store-name">Mandrel</div>
+      <div class="store-type">Narrative Handoffs</div>
+      <div class="store-desc">What happened this shift, what to investigate next, open questions. The continuity layer between shifts.</div>
+      <div class="store-tables">
+        <span class="store-table-tag">handoff</span>
+        <span class="store-table-tag">planning</span>
+        <span class="store-table-tag">reflections</span>
+        <span class="store-table-tag">milestone</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shift Strategy -->
+  <div class="shift-section">
+    <div class="phase-label">
+      <div class="phase-num">STRATEGY</div>
+      <div class="phase-title">Shift Plan &mdash; Transistor History</div>
+      <div class="phase-line"></div>
+    </div>
+
+    <div class="shift-grid">
+      <div class="shift-card" onclick="showDetail('shift1')">
+        <div class="shift-num">1</div>
+        <div class="shift-name">Foundation</div>
+        <div class="shift-brief">Map the landscape. Breadth over depth.</div>
+      </div>
+      <div class="shift-card" onclick="showDetail('shift2')">
+        <div class="shift-num">2</div>
+        <div class="shift-name">Bell Labs</div>
+        <div class="shift-brief">Internal dynamics, patents, military ties.</div>
+      </div>
+      <div class="shift-card" onclick="showDetail('shift3')">
+        <div class="shift-num">3</div>
+        <div class="shift-name">Diaspora</div>
+        <div class="shift-brief">Shockley, Traitorous Eight, Fairchild.</div>
+      </div>
+      <div class="shift-card" onclick="showDetail('shift4')">
+        <div class="shift-num">4</div>
+        <div class="shift-name">Big Picture</div>
+        <div class="shift-brief">Government, consent decree, international.</div>
+      </div>
+      <div class="shift-card" onclick="showDetail('shift5')">
+        <div class="shift-num">5</div>
+        <div class="shift-name">Connections</div>
+        <div class="shift-brief">Cross-reference, patterns, remaining gaps.</div>
+      </div>
+      <div class="shift-card" onclick="showDetail('shift6')">
+        <div class="shift-num">6</div>
+        <div class="shift-brief">Final review, gap analysis, synthesis.</div>
+        <div class="shift-name">Synthesis</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay -->
+<div class="overlay" id="overlay" onclick="closeDetail()"></div>
+
+<!-- Detail Panel -->
+<div class="detail-panel" id="detailPanel">
+  <div class="detail-header">
+    <div class="detail-header-left">
+      <div class="detail-icon" id="detailIcon"></div>
+      <div>
+        <div class="detail-title" id="detailTitle"></div>
+        <div class="detail-subtitle" id="detailSubtitle"></div>
+      </div>
+    </div>
+    <button class="detail-close" onclick="closeDetail()">&times;</button>
+  </div>
+  <div class="detail-body" id="detailBody"></div>
+</div>
+
+<script>
+const details = {
+  thucydides: {
+    icon: '&#x1F3DB;&#xFE0F;',
+    title: 'Thucydides',
+    subtitle: 'ORCHESTRATOR \u2022 OPUS 4.6',
+    subtitleColor: 'var(--thuc-color)',
+    sections: [
+      {
+        title: 'Role',
+        type: 'text',
+        content: 'You are Thucydides, the research orchestrator. You are an Opus 4.6 instance running as part of a SIRK (Sequential Instance Relay Knowledge) loop. Each run of you is one investigative shift. You build on previous shifts\u2019 work, deploy specialized research agents, challenge findings, and write validated results to PostgreSQL.'
+      },
+      {
+        title: 'Shift Startup Sequence',
+        type: 'list',
+        items: [
+          'Determine shift number from most recent Mandrel handoff',
+          'Read previous work via context_get_recent',
+          'Check database state with thuc_topic_summary',
+          'Review open threads, prioritize by severity',
+          'Read all agent role files before spawning'
+        ]
+      },
+      {
+        title: 'Agent Deployment',
+        type: 'text',
+        content: 'Spawns Scholar, Digger, and Archivist in PARALLEL via Task tool. Each agent receives: their role definition, a research brief for the shift, the structured return format, and current database state. After research returns, spawns Jester with 3-5 key claims to challenge. If serious/critical challenges arise, spawns Judge.'
+      },
+      {
+        title: 'Decision Framework',
+        type: 'list',
+        items: [
+          'Deploy Jester when: confidence > 0.7 from single source, claim would change narrative, claims about motivations, anything "too clean"',
+          'Deploy Judge when: Jester returns serious/critical, two agents contradict, strong evidence both ways',
+        ]
+      },
+      {
+        title: 'Confidence Calibration',
+        type: 'confidence',
+        items: [
+          { range: '0.9\u20131.0', desc: 'Multiple primary sources, direct evidence, unchallenged', color: 'var(--accent-green)' },
+          { range: '0.7\u20130.8', desc: 'Good secondary sources, well-corroborated, survived Jester', color: '#8ad44a' },
+          { range: '0.5\u20130.6', desc: 'Single source or informal, plausible but unverified', color: 'var(--accent-gold)' },
+          { range: '0.3\u20130.4', desc: 'Speculative, based on inference, low-reliability sources', color: 'var(--accent-orange)' },
+          { range: '0.1\u20130.2', desc: 'Rumor or unverified, recorded for investigation only', color: 'var(--accent-red)' },
+        ]
+      },
+      {
+        title: 'Handoff Protocol',
+        type: 'text',
+        content: 'At shift end: writes shift report to PostgreSQL (summary, counts, key findings, next priorities), then writes comprehensive handoff to Mandrel (type: handoff) with what was done, key findings, threads opened/progressed/resolved, Jester challenges, database state, and instructions for next shift.'
+      }
+    ]
+  },
+
+  scholar: {
+    icon: '&#x1F393;',
+    title: 'Scholar',
+    subtitle: 'ACADEMIC RESEARCH AGENT',
+    subtitleColor: 'var(--scholar-color)',
+    sections: [
+      {
+        title: 'Role',
+        type: 'text',
+        content: 'You are Scholar, an academic research specialist. You find formal, peer-reviewed, and officially published information. You are methodical, thorough, and citation-obsessed. You don\u2019t speculate \u2013 you report what the evidence says.'
+      },
+      {
+        title: 'Search Strategy',
+        type: 'list',
+        items: [
+          'Academic papers and journals (Google Scholar, arXiv, IEEE, ACM)',
+          'Patent filings and patent family trees (USPTO, Google Patents)',
+          'University publications and dissertations',
+          'Published books and encyclopedias',
+          'Official corporate histories and annual reports',
+          'Technical standards documents',
+          'Nobel Prize citations and committee reports'
+        ]
+      },
+      {
+        title: 'Research Focus',
+        type: 'list',
+        items: [
+          'Named individuals \u2013 key people, roles, credentials, affiliations',
+          'Organizations \u2013 institutions involved, their relationships',
+          'Timeline \u2013 when things happened, the sequence',
+          'Publications \u2013 papers, patents, reports that document this',
+          'Funding \u2013 who paid for the research, grants or contracts'
+        ]
+      },
+      {
+        title: 'Thinking Instructions',
+        type: 'text',
+        content: 'Think deeply about what you find. Don\u2019t just list facts. Consider: What does this source actually say vs. what is commonly assumed? Are there gaps or contradictions in the official record? What questions does this raise for other agents to investigate?'
+      },
+      {
+        title: 'Return Format',
+        type: 'code',
+        content: 'ENTITY|type|name|description|confidence\nRELATIONSHIP|from_name|to_name|rel_type|period|description|confidence\nSOURCE|url_or_citation|title|source_type|description|reliability\nTHREAD|title|description|priority\nCLAIM|entity_or_rel_description|source_title|specific_claim_text'
+      },
+      {
+        title: 'Source Types',
+        type: 'tags',
+        tagType: 'tag-source',
+        items: ['academic', 'book', 'patent', 'government', 'corporate', 'encyclopedia']
+      }
+    ]
+  },
+
+  digger: {
+    icon: '&#x26CF;&#xFE0F;',
+    title: 'Digger',
+    subtitle: 'UNCONVENTIONAL SOURCES AGENT',
+    subtitleColor: 'var(--digger-color)',
+    sections: [
+      {
+        title: 'Role',
+        type: 'text',
+        content: 'You are Digger, an unconventional research specialist. You find what\u2019s NOT in the official story. You dig through forums, social media, personal blogs, interviews, oral histories, and the corners of the internet where people talk freely. You are skeptical of official narratives and curious about what gets left out. You find the human side of history \u2013 the gossip, the rivalries, the accidents, the things people say informally that they\u2019d never put in a paper.'
+      },
+      {
+        title: 'Search Strategy',
+        type: 'list',
+        items: [
+          'Forums and discussion boards (Reddit, HackerNews, specialized forums)',
+          'Personal blogs and memoirs',
+          'Oral history projects and interview transcripts',
+          'Social media discussions and threads',
+          'Documentary transcripts and interviews',
+          'Podcast transcripts',
+          'Obituaries and memorial writings (people say interesting things about the dead)',
+          'Book reviews and commentary (often contain insights the books don\u2019t)',
+          'Informal histories and "behind the scenes" accounts',
+          'Quora and Stack Exchange historical discussions'
+        ]
+      },
+      {
+        title: 'Research Focus',
+        type: 'list',
+        items: [
+          'Personal dynamics \u2013 who liked/hated whom, rivalries that shaped decisions',
+          'Informal accounts \u2013 former employees, students, family members',
+          'Counter-narratives \u2013 alternative versions of events, who tells them',
+          'Hidden connections \u2013 people who show up in unexpected places',
+          'The "why" behind decisions \u2013 not the official reason, the real one'
+        ]
+      },
+      {
+        title: 'Thinking Instructions',
+        type: 'text',
+        content: 'Think like an investigative journalist. Ask yourself: Who benefits from the official version of this story? What\u2019s conspicuously absent from the record? If I were trying to hide something, where would the traces be? Who would know the truth and might have talked about it informally?\n\nThis is NOT conspiracy theorizing. This is looking for the full picture that includes human complexity, institutional politics, and the things that don\u2019t make it into textbooks.'
+      },
+      {
+        title: 'Return Format',
+        type: 'code',
+        content: 'ENTITY|type|name|description|confidence\nRELATIONSHIP|from_name|to_name|rel_type|period|description|confidence\nSOURCE|url_or_citation|title|source_type|description|reliability\nTHREAD|title|description|priority\nCLAIM|entity_or_rel_description|source_title|specific_claim_text'
+      },
+      {
+        title: 'Key Rule',
+        type: 'text',
+        content: 'Low-reliability sources are FINE. Flag them honestly but include them. A 0.3 reliability forum post that opens a thread is more valuable than not reporting it. Your unique value is finding threads that the formal researchers miss.'
+      },
+      {
+        title: 'Source Types',
+        type: 'tags',
+        tagType: 'tag-source',
+        items: ['forum', 'blog', 'interview', 'oral-history', 'documentary', 'podcast', 'memoir', 'social-media', 'obituary', 'commentary']
+      }
+    ]
+  },
+
+  archivist: {
+    icon: '&#x1F4DC;',
+    title: 'Archivist',
+    subtitle: 'HISTORICAL PRIMARY SOURCES AGENT',
+    subtitleColor: 'var(--archivist-color)',
+    sections: [
+      {
+        title: 'Role',
+        type: 'text',
+        content: 'You are Archivist, a historical primary source specialist. You find what was reported AT THE TIME, not retrospectively. Contemporary newspaper articles, government documents, congressional records, procurement contracts, declassified materials, trade publications, and period media. You care about what people knew and said when events were happening, before the narrative got cleaned up.'
+      },
+      {
+        title: 'Search Strategy',
+        type: 'list',
+        items: [
+          'Historical newspaper archives (newspaper databases, archive.org)',
+          'Government documents and reports (congressional records, committee hearings)',
+          'Declassified materials (CIA FOIA, NSA declassified, military archives)',
+          'Trade publications from the era (Electronics magazine, IEEE proceedings)',
+          'Corporate press releases and announcements from the time',
+          'Patent office records and patent litigation documents',
+          'Military procurement records and contract announcements',
+          'Census records, corporate filings, incorporation documents',
+          'News wire archives (AP, UPI, Reuters historical)',
+          'Television and radio broadcast transcripts/archives'
+        ]
+      },
+      {
+        title: 'Research Focus',
+        type: 'list',
+        items: [
+          'Contemporary accounts \u2013 what newspapers reported when it happened, how it was framed',
+          'Government involvement \u2013 contracts, hearings, programs connected to this',
+          'Money trails \u2013 procurement records, funding announcements, corporate filings',
+          'Declassified materials \u2013 what was classified and later released, timing tells a story',
+          'Period context \u2013 what else was happening (Cold War, corporate competition, military needs)'
+        ]
+      },
+      {
+        title: 'Thinking Instructions',
+        type: 'text',
+        content: 'Think like a historian examining primary sources: What did contemporaries think was important about this event? (Often different from what we emphasize now.) What was the government\u2019s stated interest vs. actual interest? Follow the money \u2013 who paid for what and why? Declassified documents often reveal more by what\u2019s REDACTED than what\u2019s shown. Trade publications are goldmines \u2013 they reported for industry insiders, not the general public.'
+      },
+      {
+        title: 'Return Format',
+        type: 'code',
+        content: 'ENTITY|type|name|description|confidence\nRELATIONSHIP|from_name|to_name|rel_type|period|description|confidence\nSOURCE|url_or_citation|title|source_type|description|reliability\nTHREAD|title|description|priority\nCLAIM|entity_or_rel_description|source_title|specific_claim_text'
+      },
+      {
+        title: 'Key Rule',
+        type: 'text',
+        content: 'Contemporary sources are your gold standard. A 1948 newspaper article about the transistor is worth more than a 2020 retrospective. Date everything. Government documents often use euphemisms \u2013 note what they actually say vs. what they seem to mean.'
+      },
+      {
+        title: 'Source Types',
+        type: 'tags',
+        tagType: 'tag-source',
+        items: ['newspaper', 'government', 'military', 'declassified', 'trade-publication', 'corporate-filing', 'congressional', 'patent-litigation', 'broadcast']
+      }
+    ]
+  },
+
+  jester: {
+    icon: '&#x1F3AD;',
+    title: 'Jester',
+    subtitle: 'ADVERSARIAL CRITIC',
+    subtitleColor: 'var(--jester-color)',
+    sections: [
+      {
+        title: 'Role',
+        type: 'text',
+        content: 'You are Jester, the adversarial critic. Your job is to CHALLENGE claims, not confirm them. When Thucydides sends you findings, you actively try to poke holes in them. You look for logical flaws, missing evidence, alternative explanations, confirmation bias, and claims that are "too clean." You are not a troll \u2013 you are the defense attorney in a trial where truth is the client.'
+      },
+      {
+        title: 'Purpose',
+        type: 'text',
+        content: 'Every research team has a natural tendency toward confirmation bias. Once a narrative starts forming, people unconsciously look for evidence that supports it and ignore evidence that doesn\u2019t. YOU prevent this. You are the institutional check against groupthink.'
+      },
+      {
+        title: 'Challenge Method',
+        type: 'list',
+        items: [
+          'Question the source \u2013 how reliable? Primary or secondary? What was their motivation?',
+          'Look for alternatives \u2013 what other explanation fits? Is this the ONLY interpretation?',
+          'Check for gaps \u2013 what evidence SHOULD exist if this claim is true? Is it there?',
+          'Test the logic \u2013 does the causal chain hold? Unstated assumptions?',
+          'Consider incentives \u2013 who benefits from this being believed? Who benefits from it being false?',
+          'Search for contradictions \u2013 actively search for evidence that contradicts the claim'
+        ]
+      },
+      {
+        title: 'Return Format',
+        type: 'code',
+        content: 'CHALLENGE|claim_summary|challenge_text|severity|search_performed\nVERDICT|claim_summary|upheld_or_weakened_or_refuted|reasoning\nTHREAD|title|description|priority'
+      },
+      {
+        title: 'Severity Levels',
+        type: 'tags',
+        tagType: 'tag-severity',
+        items: ['minor \u2013 nitpick', 'moderate \u2013 needs qualification', 'serious \u2013 should be revised', 'critical \u2013 withdraw or re-examine']
+      },
+      {
+        title: 'Key Rules',
+        type: 'text',
+        content: 'You are NOT trying to disprove everything. You are stress-testing claims. A claim that survives your challenge is STRONGER for it. Be specific about what bothers you. "This seems wrong" is useless. "This claim relies on a single source written 30 years after the event by someone with a stake in the outcome" is useful. You can also UPHOLD claims \u2013 if a finding is well-sourced and logically sound, say so.'
+      }
+    ]
+  },
+
+  judge: {
+    icon: '&#x2696;&#xFE0F;',
+    title: 'Judge',
+    subtitle: 'EVIDENCE EVALUATOR',
+    subtitleColor: 'var(--judge-color)',
+    sections: [
+      {
+        title: 'Role',
+        type: 'text',
+        content: 'You are Judge, the evidence evaluator. You are called when findings conflict, when the Jester raises serious challenges, or when Thucydides needs a second opinion on contested claims. You weigh evidence quality, assess source reliability, evaluate corroboration, and render verdicts. You are impartial, methodical, and transparent in your reasoning.'
+      },
+      {
+        title: 'When Called',
+        type: 'list',
+        items: [
+          'Two agents report conflicting information about the same entity or event',
+          'Jester raises a "serious" or "critical" challenge against a finding',
+          'A claim has only one source and high stakes (would change the narrative)',
+          'Thucydides is unsure how to reconcile contradictory evidence'
+        ]
+      },
+      {
+        title: 'Method',
+        type: 'list',
+        items: [
+          'Examine all evidence \u2013 read every claim, source, and challenge',
+          'Assess source quality \u2013 primary vs. secondary, contemporary vs. retrospective',
+          'Check corroboration \u2013 how many independent sources support each side?',
+          'Consider context \u2013 what was happening at the time? What incentives existed?',
+          'Render a verdict \u2013 clear, reasoned, transparent'
+        ]
+      },
+      {
+        title: 'Evidence Hierarchy (strongest \u2192 weakest)',
+        type: 'hierarchy',
+        items: [
+          'Contemporary primary documents (letters, memos, filings from the time)',
+          'Official records (patents, court documents, government records)',
+          'Peer-reviewed academic research',
+          'Contemporaneous news reporting',
+          'Later academic histories and biographies',
+          'Memoirs and autobiographies (motivated by self-interest)',
+          'Secondary news reporting and retrospectives',
+          'Informal sources (forums, blogs, interviews)',
+          'Unattributed or anonymous claims'
+        ]
+      },
+      {
+        title: 'Return Format',
+        type: 'code',
+        content: 'EVIDENCE_REVIEW|claim_summary|evidence_for|evidence_against\nVERDICT|claim_summary|accepted_or_modified_or_rejected|confidence|reasoning\nRECOMMENDATION|action_to_take|description'
+      },
+      {
+        title: 'Key Rule',
+        type: 'text',
+        content: 'Transparency is everything. Show your reasoning completely. A verdict without visible reasoning is worthless. "Insufficient evidence to determine" is a valid verdict. Your verdicts should include specific recommended actions: revise an entity, adjust confidence, open a new thread, or accept as-is.'
+      }
+    ]
+  },
+
+  postgres: {
+    icon: '&#x1F5C4;&#xFE0F;',
+    title: 'PostgreSQL',
+    subtitle: 'STRUCTURED KNOWLEDGE GRAPH',
+    subtitleColor: 'var(--accent-cyan)',
+    sections: [
+      {
+        title: 'Purpose',
+        type: 'text',
+        content: 'The structured data store. All validated findings \u2013 entities, relationships, sources, and their provenance chains \u2013 live here. This is the knowledge graph that grows across shifts. Accessed via SSH to VPS.'
+      },
+      {
+        title: 'Tables',
+        type: 'list',
+        items: [
+          'entities \u2013 people, organizations, events, technologies, patents, programs, locations. Tracked with confidence scores, Jester challenge status, provenance (shift_discovered, discovered_by)',
+          'relationships \u2013 links between entities with type, period, description, confidence',
+          'sources \u2013 URLs, citations, publications with reliability scores and agent attribution',
+          'entity_sources \u2013 links entities to their supporting sources with specific claim text (provenance chain)',
+          'threads \u2013 open lines of inquiry with priority, status, and resolution tracking',
+          'shift_reports \u2013 per-shift summaries with counts, key findings, next priorities, Jester challenges',
+          'cross_connections \u2013 links between different research topics (the ultimate goal)'
+        ]
+      },
+      {
+        title: 'Access Pattern',
+        type: 'code',
+        content: 'ssh hetzner "psql -U mandrel -d thucydides -c \'...\'"'
+      },
+      {
+        title: 'Key Constraint',
+        type: 'text',
+        content: 'UNIQUE constraint on (type, name, topic) for entities. Deduplication happens at insert time. Entity confidence scores are updated based on Jester/Judge outcomes.'
+      }
+    ]
+  },
+
+  mandrel: {
+    icon: '&#x1F4E1;',
+    title: 'Mandrel',
+    subtitle: 'NARRATIVE CONTINUITY LAYER',
+    subtitleColor: 'var(--accent-cyan)',
+    sections: [
+      {
+        title: 'Purpose',
+        type: 'text',
+        content: 'The narrative handoff layer between shifts. Since each shift is a fresh Opus instance with no memory of previous shifts, Mandrel stores the narrative context: what happened, what was discovered, what to investigate next. This is the continuity mechanism that makes SIRK work.'
+      },
+      {
+        title: 'Context Types Used',
+        type: 'list',
+        items: [
+          'handoff \u2013 end-of-shift summary for the next shift to read',
+          'planning \u2013 architecture decisions and strategy',
+          'reflections \u2013 what worked, what didn\u2019t, process improvements',
+          'milestone \u2013 major achievements or breakthroughs'
+        ]
+      },
+      {
+        title: 'Handoff Structure',
+        type: 'code',
+        content: '## Shift [N] Handoff\nRun: [RUN_NAME]\n\n### What This Shift Did\n### Key Findings\n### Threads Opened\n### Threads Progressed/Resolved\n### Jester Challenges\n### Database State\n### Next Shift Should\n### Where To Look'
+      },
+      {
+        title: 'Key Insight',
+        type: 'text',
+        content: 'PostgreSQL stores WHAT was found (structured data). Mandrel stores the STORY of the investigation (narrative context). Both are needed: the next shift reads the Mandrel handoff for direction, then queries PostgreSQL for current state.'
+      }
+    ]
+  },
+
+  shift1: {
+    icon: '1',
+    title: 'Shift 1: Foundation',
+    subtitle: 'BREADTH OVER DEPTH',
+    subtitleColor: 'var(--thuc-color)',
+    sections: [
+      { title: 'Objective', type: 'text', content: 'Map the entire landscape. Establish the major entities, build the basic timeline from 1920s\u20131970s, map primary relationships, identify the "official narrative" of the transistor story, and open threads for everything needing deeper investigation.' },
+      { title: 'Focus Areas', type: 'list', items: ['Key people from Known Entry Points (Shockley, Bardeen, Brattain, Kelly, Traitorous Eight, Kilby, etc.)', 'Major organizations (Bell Labs, Shockley Semi, Fairchild, TI, Signal Corps)', 'Core events timeline (1947 demo, 1952 licensing, 1956 Nobel, 1957 Fairchild, 1958 IC)', 'The official narrative \u2013 what textbooks say happened', 'Open threads for EVERYTHING that needs deeper investigation'] }
+    ]
+  },
+  shift2: {
+    icon: '2',
+    title: 'Shift 2: Bell Labs Deep Dive',
+    subtitle: 'INTERNAL DYNAMICS',
+    subtitleColor: 'var(--thuc-color)',
+    sections: [
+      { title: 'Objective', type: 'text', content: 'Follow Shift 1 threads. Deep dive into Bell Labs: internal dynamics, management decisions, the Shockley/Bardeen/Brattain relationships, the patent question, and military connections to solid-state research.' },
+      { title: 'Focus Areas', type: 'list', items: ['Bell Labs internal dynamics and management decisions', 'Shockley/Bardeen/Brattain relationships and conflicts', 'The patent question \u2013 who really invented what?', 'Military connections to Bell Labs solid-state research', 'Mervin Kelly\u2019s role in initiating the program'] }
+    ]
+  },
+  shift3: {
+    icon: '3',
+    title: 'Shift 3: The Diaspora',
+    subtitle: 'SILICON VALLEY ORIGINS',
+    subtitleColor: 'var(--thuc-color)',
+    sections: [
+      { title: 'Objective', type: 'text', content: 'Shockley Semiconductor and why it failed. The Traitorous Eight \u2013 who were they before Shockley? Fairchild Semiconductor founding and early days. The venture capital connection.' },
+      { title: 'Focus Areas', type: 'list', items: ['Shockley Semiconductor \u2013 founding, dysfunction, failure', 'The Traitorous Eight \u2013 backgrounds, motivations, the decision to leave', 'Fairchild Semiconductor \u2013 founding, early technology, corporate structure', 'Arthur Rock and Hayden Stone \u2013 the venture capital innovation', 'The "semiconductor family tree" branching from Fairchild'] }
+    ]
+  },
+  shift4: {
+    icon: '4',
+    title: 'Shift 4: The Bigger Picture',
+    subtitle: 'GOVERNMENT & GLOBAL',
+    subtitleColor: 'var(--thuc-color)',
+    sections: [
+      { title: 'Objective', type: 'text', content: 'Government/military procurement and funding. The AT&T consent decree and licensing decision. Texas Instruments and the parallel track. International dimensions.' },
+      { title: 'Focus Areas', type: 'list', items: ['Government/military procurement and funding \u2013 how much was defense-driven?', 'The AT&T consent decree \u2013 why did they license the transistor for $25K?', 'Texas Instruments and Jack Kilby\u2019s parallel integrated circuit work', 'European contributions (especially UK radar work)', 'Japanese semiconductor industry emergence'] }
+    ]
+  },
+  shift5: {
+    icon: '5',
+    title: 'Shift 5: Connections & Gaps',
+    subtitle: 'CROSS-REFERENCE',
+    subtitleColor: 'var(--thuc-color)',
+    sections: [
+      { title: 'Objective', type: 'text', content: 'Review everything, look for patterns. Cross-reference people who appear in multiple contexts. Follow remaining open threads. Identify what\u2019s still missing.' },
+      { title: 'Focus Areas', type: 'list', items: ['Cross-reference people appearing in multiple contexts', 'Pattern recognition across all collected data', 'Follow remaining open threads by priority', 'Identify systematic gaps in the knowledge graph', 'Look for unexpected connections'] }
+    ]
+  },
+  shift6: {
+    icon: '6',
+    title: 'Shift 6: Synthesis',
+    subtitle: 'FINAL REVIEW',
+    subtitleColor: 'var(--thuc-color)',
+    sections: [
+      { title: 'Objective', type: 'text', content: 'Final Jester review of the key narrative. Gap analysis. Compile the full picture. Identify cross-topic connection points for future research topics.' },
+      { title: 'Focus Areas', type: 'list', items: ['Final comprehensive Jester review of the entire narrative', 'Systematic gap analysis \u2013 what do we still not know?', 'Compile the full knowledge graph into a coherent picture', 'Identify cross-topic connection points for future research', 'Write final synthesis report'] }
+    ]
+  }
+};
+
+function showDetail(key) {
+  const d = details[key];
+  if (!d) return;
+
+  // Remove previous selections
+  document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+
+  // Add selection to clicked element
+  const clickedEl = event.currentTarget;
+  if (clickedEl) clickedEl.classList.add('selected');
+
+  document.getElementById('detailIcon').innerHTML = d.icon;
+  document.getElementById('detailTitle').textContent = d.title;
+  const sub = document.getElementById('detailSubtitle');
+  sub.textContent = d.subtitle;
+  sub.style.color = d.subtitleColor;
+
+  let html = '';
+  for (const s of d.sections) {
+    html += `<div class="detail-section">`;
+    html += `<div class="detail-section-title">${s.title}</div>`;
+
+    if (s.type === 'text') {
+      html += `<div class="detail-text">${s.content.replace(/\n/g, '<br>')}</div>`;
+    } else if (s.type === 'list') {
+      html += `<ul class="detail-list">`;
+      for (const item of s.items) {
+        html += `<li>${item}</li>`;
+      }
+      html += `</ul>`;
+    } else if (s.type === 'code') {
+      html += `<div class="detail-code">${s.content}</div>`;
+    } else if (s.type === 'tags') {
+      html += `<div>`;
+      for (const item of s.items) {
+        html += `<span class="detail-tag ${s.tagType}">${item}</span>`;
+      }
+      html += `</div>`;
+    } else if (s.type === 'confidence') {
+      html += `<div class="confidence-scale">`;
+      for (const item of s.items) {
+        html += `<div class="conf-row">
+          <div class="conf-bar" style="background: ${item.color}"></div>
+          <div class="conf-range">${item.range}</div>
+          <div class="conf-desc">${item.desc}</div>
+        </div>`;
+      }
+      html += `</div>`;
+    } else if (s.type === 'hierarchy') {
+      html += `<ol style="padding-left: 20px; margin: 0;">`;
+      for (let i = 0; i < s.items.length; i++) {
+        const opacity = 1 - (i * 0.08);
+        html += `<li style="font-size: 12px; color: var(--text); padding: 4px 0; opacity: ${opacity};">
+          <span class="detail-tag tag-hierarchy" style="margin-right: 6px; opacity: ${opacity};">${i + 1}</span>
+          ${s.items[i]}
+        </li>`;
+      }
+      html += `</ol>`;
+    }
+    html += `</div>`;
+  }
+
+  document.getElementById('detailBody').innerHTML = html;
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+  document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+}
+
+// Close on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeDetail();
+});
+</script>
+</body>
+</html>
