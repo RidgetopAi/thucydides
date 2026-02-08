@@ -4,10 +4,12 @@ import { api } from '../../lib/api';
 import type { Source } from '../../lib/types';
 import { ConfidenceBadge } from '../shared/ConfidenceBadge';
 import { FilterBar } from '../shared/FilterBar';
+import { useTopic } from '../../lib/TopicContext';
 import { ExternalLink, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export function SourceList() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { topic } = useTopic();
   const [sources, setSources] = useState<Source[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -23,13 +25,14 @@ export function SourceList() {
       type: type || undefined,
       agent: agent || undefined,
       sort: sort || undefined,
+      topic: topic || undefined,
       page,
       limit: 50,
     }).then((data) => {
       setSources(data.sources);
       setTotal(data.total);
     }).finally(() => setLoading(false));
-  }, [type, agent, sort, page]);
+  }, [type, agent, sort, page, topic]);
 
   const setFilter = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams);

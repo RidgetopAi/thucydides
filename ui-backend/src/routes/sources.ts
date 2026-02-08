@@ -21,6 +21,10 @@ router.get('/', async (req, res) => {
       conditions.push(`agent = $${idx++}`);
       params.push(req.query.agent);
     }
+    if (req.query.topic) {
+      conditions.push(`topic = $${idx++}`);
+      params.push(req.query.topic);
+    }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const sort = req.query.sort === 'title' ? 'title ASC' :

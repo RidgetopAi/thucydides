@@ -2,17 +2,19 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { ShiftReport } from '../../lib/types';
+import { useTopic } from '../../lib/TopicContext';
 import { formatDate } from '../../lib/format';
 import { Loader2, Database, GitBranch, BookOpen } from 'lucide-react';
 
 export function ShiftTimeline() {
+  const { topic } = useTopic();
   const [shifts, setShifts] = useState<ShiftReport[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    api.shifts().then((data) => setShifts(data.shifts)).finally(() => setLoading(false));
-  }, []);
+    api.shifts({ topic: topic || undefined }).then((data) => setShifts(data.shifts)).finally(() => setLoading(false));
+  }, [topic]);
 
   if (loading) {
     return (

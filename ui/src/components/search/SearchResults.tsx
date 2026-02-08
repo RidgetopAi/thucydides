@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { SearchResults as SearchResultsType } from '../../lib/types';
+import { useTopic } from '../../lib/TopicContext';
 import { EntityResultCard, SourceResultCard, ThreadResultCard } from './ResultCard';
 import { Loader2 } from 'lucide-react';
 
 export function SearchResults() {
   const [searchParams] = useSearchParams();
+  const { topic } = useTopic();
   const q = searchParams.get('q') || '';
   const [results, setResults] = useState<SearchResultsType | null>(null);
   const [loading, setLoading] = useState(false);
@@ -14,8 +16,8 @@ export function SearchResults() {
   useEffect(() => {
     if (!q) { setResults(null); return; }
     setLoading(true);
-    api.search(q).then(setResults).finally(() => setLoading(false));
-  }, [q]);
+    api.search(q, undefined, undefined, topic || undefined).then(setResults).finally(() => setLoading(false));
+  }, [q, topic]);
 
   if (!q) {
     return (

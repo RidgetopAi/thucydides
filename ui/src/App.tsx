@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { TopicProvider } from './lib/TopicContext';
 import { AppShell } from './components/layout/AppShell';
 import { SearchResults } from './components/search/SearchResults';
 import { EntityList } from './components/entities/EntityList';
@@ -12,6 +13,7 @@ import { Dashboard } from './components/dashboard/Dashboard';
 export default function App() {
   return (
     <BrowserRouter>
+      <TopicProvider>
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/" element={<Navigate to="/search" replace />} />
@@ -27,6 +29,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
         </Route>
       </Routes>
+      </TopicProvider>
     </BrowserRouter>
   );
 }

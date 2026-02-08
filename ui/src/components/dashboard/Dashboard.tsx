@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import type { Stats } from '../../lib/types';
+import { useTopic } from '../../lib/TopicContext';
 import { entityTypeColor, statusColor } from '../../lib/format';
 import { Database, GitBranch, BookOpen, MessageSquare, Clock, Loader2 } from 'lucide-react';
 
 export function Dashboard() {
+  const { topic } = useTopic();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    api.stats().then(setStats).finally(() => setLoading(false));
-  }, []);
+    api.stats({ topic: topic || undefined }).then(setStats).finally(() => setLoading(false));
+  }, [topic]);
 
   if (loading) {
     return (

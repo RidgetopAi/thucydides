@@ -3,11 +3,13 @@ import { useSearchParams, useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { Thread } from '../../lib/types';
 import { FilterBar } from '../shared/FilterBar';
+import { useTopic } from '../../lib/TopicContext';
 import { statusColor, priorityColor, formatDate } from '../../lib/format';
 import { Loader2 } from 'lucide-react';
 
 export function ThreadBoard() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { topic } = useTopic();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -22,12 +24,13 @@ export function ThreadBoard() {
       status: status || undefined,
       priority: priority || undefined,
       sort: sort || undefined,
+      topic: topic || undefined,
       limit: 100,
     }).then((data) => {
       setThreads(data.threads);
       setTotal(data.total);
     }).finally(() => setLoading(false));
-  }, [status, priority, sort]);
+  }, [status, priority, sort, topic]);
 
   const setFilter = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams);

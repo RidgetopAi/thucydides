@@ -4,10 +4,12 @@ import { api } from '../../lib/api';
 import type { Entity } from '../../lib/types';
 import { EntityCard } from './EntityCard';
 import { FilterBar } from '../shared/FilterBar';
+import { useTopic } from '../../lib/TopicContext';
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export function EntityList() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { topic } = useTopic();
   const [entities, setEntities] = useState<Entity[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -25,13 +27,14 @@ export function EntityList() {
       discovered_by: discovered_by || undefined,
       sort: sort || undefined,
       challenged: challenged || undefined,
+      topic: topic || undefined,
       page,
       limit: 48,
     }).then((data) => {
       setEntities(data.entities);
       setTotal(data.total);
     }).finally(() => setLoading(false));
-  }, [type, discovered_by, sort, challenged, page]);
+  }, [type, discovered_by, sort, challenged, page, topic]);
 
   const setFilter = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams);

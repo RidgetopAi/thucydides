@@ -7,6 +7,7 @@ import entitiesRouter from './routes/entities.js';
 import sourcesRouter from './routes/sources.js';
 import threadsRouter from './routes/threads.js';
 import shiftsRouter from './routes/shifts.js';
+import topicsRouter from './routes/topics.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '5002');
@@ -31,6 +32,7 @@ app.use('/api/entities', entitiesRouter);
 app.use('/api/sources', sourcesRouter);
 app.use('/api/threads', threadsRouter);
 app.use('/api/shifts', shiftsRouter);
+app.use('/api/topics', topicsRouter);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Thucydides UI backend running on port ${PORT}`);

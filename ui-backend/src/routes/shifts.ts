@@ -3,15 +3,25 @@ import { query } from '../db.js';
 
 const router = Router();
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
+    const params: unknown[] = [];
+    let where = '';
+
+    if (req.query.topic) {
+      where = 'WHERE topic = $1';
+      params.push(req.query.topic);
+    }
+
     const result = await query(
       `SELECT id, run_name, shift_number, topic, summary,
               new_entities, new_relationships, new_sources,
               threads_opened, threads_progressed, threads_resolved,
               key_findings, created_at
        FROM shift_reports
-       ORDER BY shift_number DESC`
+       ${where}
+       ORDER BY shift_number DESC`,
+      params
     );
 
     res.json({ shifts: result.rows });

@@ -3,15 +3,23 @@ import { query } from '../db.js';
 
 const router = Router();
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
+    const topic = req.query.topic as string | undefined;
+    const eWhere = topic ? 'WHERE topic = $1' : '';
+    const rWhere = topic ? 'WHERE topic = $1' : '';
+    const sWhere = topic ? 'WHERE topic = $1' : '';
+    const tWhere = topic ? 'WHERE topic = $1' : '';
+    const srWhere = topic ? 'WHERE topic = $1' : '';
+    const params = topic ? [topic] : [];
+
     const [entities, relationships, sources, threads, shifts, entityTypes, confidenceDistribution, threadStatuses] = await Promise.all([
-      query<{ count: string }>('SELECT COUNT(*) as count FROM entities'),
-      query<{ count: string }>('SELECT COUNT(*) as count FROM relationships'),
-      query<{ count: string }>('SELECT COUNT(*) as count FROM sources'),
-      query<{ count: string }>('SELECT COUNT(*) as count FROM threads'),
-      query<{ count: string }>('SELECT COUNT(*) as count FROM shift_reports'),
-      query<{ type: string; count: string }>('SELECT type, COUNT(*) as count FROM entities GROUP BY type ORDER BY count DESC'),
+      query<{ count: string }>(`SELECT COUNT(*) as count FROM entities ${eWhere}`, params),
+      query<{ count: string }>(`SELECT COUNT(*) as count FROM relationships ${rWhere}`, params),
+      query<{ count: string }>(`SELECT COUNT(*) as count FROM sources ${sWhere}`, params),
+      query<{ count: string }>(`SELECT COUNT(*) as count FROM threads ${tWhere}`, params),
+      query<{ count: string }>(`SELECT COUNT(*) as count FROM shift_reports ${srWhere}`, params),
+      query<{ type: string; count: string }>(`SELECT type, COUNT(*) as count FROM entities ${eWhere} GROUP BY type ORDER BY count DESC`, params),
       query<{ bucket: string; count: string }>(`
         SELECT
           CASE
@@ -20,13 +28,15 @@ router.get('/', async (_req, res) => {
             ELSE 'low'
           END as bucket,
           COUNT(*) as count
-        FROM entities GROUP BY bucket ORDER BY bucket
-      `),
-      query<{ status: string; count: string }>('SELECT status, COUNT(*) as count FROM threads GROUP BY status ORDER BY count DESC'),
+        FROM entities ${eWhere} GROUP BY bucket ORDER BY bucket
+      `, params),
+      query<{ status: string; count: string }>(`SELECT status, COUNT(*) as count FROM threads ${tWhere} GROUP BY status ORDER BY count DESC`, params),
     ]);
 
+    const dbWhere = topic ? 'WHERE discovered_by IS NOT NULL AND topic = $1' : 'WHERE discovered_by IS NOT NULL';
     const agents = await query<{ discovered_by: string; count: string }>(
-      'SELECT discovered_by, COUNT(*) as count FROM entities WHERE discovered_by IS NOT NULL GROUP BY discovered_by ORDER BY count DESC'
+      `SELECT discovered_by, COUNT(*) as count FROM entities ${dbWhere} GROUP BY discovered_by ORDER BY count DESC`,
+      params
     );
 
     res.json({

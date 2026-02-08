@@ -15,10 +15,13 @@ async function get<T>(path: string, params?: Record<string, string | number | un
 }
 
 export const api = {
-  stats: () => get<Stats>(`${BASE}/stats`),
+  topics: () => get<{ topics: string[] }>(`${BASE}/topics`),
 
-  search: (q: string, types?: string, limit?: number) =>
-    get<SearchResults>(`${BASE}/search`, { q, types, limit }),
+  stats: (params?: Record<string, string | number | undefined>) =>
+    get<Stats>(`${BASE}/stats`, params),
+
+  search: (q: string, types?: string, limit?: number, topic?: string) =>
+    get<SearchResults>(`${BASE}/search`, { q, types, limit, topic }),
 
   entities: (params?: Record<string, string | number | undefined>) =>
     get<{ entities: Entity[]; total: number; page: number; limit: number }>(`${BASE}/entities`, params),
@@ -42,8 +45,8 @@ export const api = {
   thread: (id: number) =>
     get<{ thread: Thread }>(`${BASE}/threads/${id}`),
 
-  shifts: () =>
-    get<{ shifts: ShiftReport[] }>(`${BASE}/shifts`),
+  shifts: (params?: Record<string, string | number | undefined>) =>
+    get<{ shifts: ShiftReport[] }>(`${BASE}/shifts`, params),
 
   shift: (id: number) =>
     get<{ shift: ShiftReport }>(`${BASE}/shifts/${id}`),
