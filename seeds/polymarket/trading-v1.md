@@ -88,57 +88,15 @@ ssh hetzner 'curl -s -X POST http://localhost:8080/mcp/tools/context_get_recent 
 ```
 Read Mandrel handoffs. The last polymarket handoff will tell you the shift number to continue from. If no handoffs exist, you are Shift 1.
 
-### 2. Check Kill Switch and Config
+### 2. Load Full Portfolio State
 ```bash
-ssh hetzner "sudo -u postgres psql -d thucydides -c \"
-SELECT key, value FROM trading_config ORDER BY key;
-\""
+~/projects/thucydides/tools/trading-db.sh portfolio
 ```
+This returns complete JSON with: bankroll, config (kill_switch, max_bet_size, kelly_fraction, min_edge, max_positions), all open positions (with prediction_id, market_slug, token IDs, entry price, latest P&L), deployed capital, unrealized/realized P&L, last shift number, and all active strategy rules.
+
 **IF kill_switch = true: STOP. Do not trade. Monitor only. Note in handoff that kill switch is active.**
 
-### 3. Check Portfolio State
-```bash
-ssh hetzner "sudo -u postgres psql -d thucydides -c \"
-SELECT id, market_id, question, category, prediction_probability, market_probability, edge,
-  bet_size, position_side, execution_mode, status, predicted_at, resolves_at
-FROM predictions
-WHERE mode = 'polymarket' AND status = 'active'
-ORDER BY predicted_at;
-\""
-```
-
-### 4. Check for Resolved Markets
-```bash
-ssh hetzner "sudo -u postgres psql -d thucydides -c \"
-SELECT id, market_id, question, prediction_probability, edge, bet_size, status
-FROM predictions
-WHERE mode = 'polymarket' AND status = 'active' AND resolves_at < NOW();
-\""
-```
-Markets past their resolution date need to be checked for actual outcomes.
-
-### 5. Load Active Strategy Rules
-```bash
-ssh hetzner "sudo -u postgres psql -d thucydides -c \"
-SELECT id, rule_type, rule_text, confidence, success_rate, times_applied
-FROM strategy_rules WHERE active = TRUE
-ORDER BY confidence DESC;
-\""
-```
-
-### 6. Check Virtual Bankroll (Dry-Run)
-```bash
-ssh hetzner "sudo -u postgres psql -d thucydides -c \"
-SELECT
-  (SELECT value::numeric FROM trading_config WHERE key = 'dry_run_virtual_bankroll') as starting_bankroll,
-  COALESCE(SUM(bet_size), 0) as total_deployed,
-  COALESCE(SUM(CASE WHEN po.outcome = 'correct' THEN po.profit_loss ELSE 0 END), 0) as total_won,
-  COALESCE(SUM(CASE WHEN po.outcome = 'incorrect' THEN po.profit_loss ELSE 0 END), 0) as total_lost
-FROM predictions p
-LEFT JOIN prediction_outcomes po ON po.prediction_id = p.id
-WHERE p.mode = 'polymarket';
-\""
-```
+Use the portfolio JSON directly for agent briefs — it contains everything needed.
 
 ### 7. Store Shift Start to Mandrel
 ```bash
@@ -333,68 +291,38 @@ INSERT INTO reasoning_traces (
 
 ## PHASE 5: EXECUTION (DRY RUN)
 
-For each TRADE decision:
+For each TRADE decision, use the trading database helper:
 
-### Record Prediction
-```sql
-INSERT INTO predictions (
-  mode, topic, market_id, market_url, question, category,
-  prediction_probability, market_probability, edge,
-  confidence_reasoning, methodology_used, information_sources,
-  base_rate, base_rate_source,
-  bet_size, bet_price, potential_payout,
-  execution_mode, consensus_probability, disagreement_score,
-  skills_entities_used, shift_number, position_side,
-  current_market_prob, status, predicted_at, resolves_at, run_name
-) VALUES (
-  'polymarket', 'polymarket-trading', '[slug]',
-  'https://polymarket.com/event/[slug]', '[question]', '[category]',
-  [our_prob], [market_prob], [edge],
-  '[full confidence reasoning]',
-  ARRAY['[methods]'],
-  ARRAY[[skills_entity_ids]],
-  [base_rate], '[base_rate_source]',
-  [bet_size], [market_prob], [potential_payout],
-  'dry_run', [consensus_prob], [disagreement],
-  ARRAY[[skills_ids]], [N], '[yes/no]',
-  [current_market_prob], 'active', NOW(), '[resolves_at]', 'trading-v1'
-);
+### Record Trade (Atomic)
+```bash
+~/projects/thucydides/tools/trading-db.sh record-trade \
+  --slug "[market_slug]" \
+  --question "[market question]" \
+  --category "[category]" \
+  --our-prob [our_probability] \
+  --market-prob [market_probability] \
+  --bet-size [dollar_size] \
+  --side [YES/NO] \
+  --reasoning "[synthesis of why we're taking this position]" \
+  --yes-token "[yes_token_id]" \
+  --no-token "[no_token_id]" \
+  --kelly-frac [kelly_fraction_used] \
+  --shift [N]
 ```
+Returns: `{"prediction_id": 5, "market_slug": "...", "bet_size": 10}`
 
-### Record Market Snapshot
-```sql
-INSERT INTO market_snapshots (
-  prediction_id, market_slug, snapshot_type,
-  market_probability, best_bid, best_ask, spread,
-  volume_24h, volume_total, liquidity,
-  our_position_size, our_avg_price, unrealized_pnl,
-  market_metadata, portfolio_state, created_at
-) VALUES (
-  (SELECT id FROM predictions WHERE market_id = '[slug]' AND mode = 'polymarket' AND status = 'active'),
-  '[slug]', 'entry',
-  [market_prob], [bid], [ask], [spread],
-  [vol24h], [vol_total], [liq],
-  [bet_size], [market_prob], 0,
-  '{"clob_token_ids": {"yes": "[yes_token_id]", "no": "[no_token_id]"}}'::jsonb,
-  '[portfolio_state_json]'::jsonb, NOW()
-);
-```
-**IMPORTANT**: Always store `clob_token_ids` in `market_metadata`. These are needed for position monitoring in future shifts.
+This atomically creates: prediction row, entry market_snapshot (with token IDs), position_lifecycle entry, AND backfills agent_assessments.prediction_id for this market.
 
-### Record Position Lifecycle Entry
-```sql
-INSERT INTO position_lifecycle (
-  prediction_id, action, action_reason,
-  size_before, size_after, price_at_action,
-  market_prob_at_action, our_prob_at_action, edge_at_action,
-  kelly_fraction_used, trigger, shift_number, run_name
-) VALUES (
-  (SELECT id FROM predictions WHERE market_id = '[slug]' AND mode = 'polymarket' AND status = 'active'),
-  'enter', '[why we entered]',
-  0, [bet_size], [market_prob],
-  [market_prob], [our_prob], [edge],
-  [kelly_frac], 'new_analysis', [N], 'trading-v1'
-);
+### Record Skip/Watchlist
+For markets we evaluated but didn't trade:
+```bash
+~/projects/thucydides/tools/trading-db.sh record-skip \
+  --slug "[market_slug]" \
+  --decision "[skip|watchlist]" \
+  --reasoning "[why we're not trading — be specific]" \
+  --market-prob [market_probability] \
+  --our-prob [our_probability] \
+  --shift [N]
 ```
 
 ---
@@ -403,81 +331,61 @@ INSERT INTO position_lifecycle (
 
 For ALL open positions:
 
-### Retrieve Token IDs for Open Positions
-Query the database for all open positions and their stored CLOB token IDs:
-```sql
-SELECT p.id, p.market_id, p.prediction_text,
-       ms.market_metadata->>'clob_token_ids' AS token_ids,
-       pl.entry_price, pl.position_size_usd
-FROM predictions p
-JOIN market_snapshots ms ON ms.prediction_id = p.id
-  AND ms.snapshot_type = 'entry'
-LEFT JOIN position_lifecycle pl ON pl.prediction_id = p.id
-  AND pl.action = 'enter'
-WHERE p.mode = 'polymarket' AND p.status = 'active'
-ORDER BY p.created_at;
-```
-
-Extract the YES token ID from each position's `token_ids` JSON: `echo '<token_ids>' | jq -r '.yes'`
-
-If a position has no stored token IDs (legacy), look it up:
-```bash
-~/projects/thucydides/tools/polymarket.sh market <slug>
-```
-Then extract `clob_token_ids[0]` from the result and update the snapshot:
-```sql
-UPDATE market_snapshots SET market_metadata = jsonb_set(
-  COALESCE(market_metadata, '{}'), '{clob_token_ids}',
-  '{"yes": "<yes_token_id>", "no": "<no_token_id>"}'::jsonb
-) WHERE prediction_id = [pred_id] AND snapshot_type = 'entry';
-```
-
-### Fetch Current Prices
-Use the Polymarket API tool to batch-check all open positions:
+### Get Positions and Prices
+The portfolio state from startup (Phase 2) already has all positions with `prediction_id`, `yes_token_id`, and `entry_price`. Use the Polymarket API to fetch current prices:
 ```bash
 ~/projects/thucydides/tools/polymarket.sh monitor <yes_token_id_1> <yes_token_id_2> ...
 ```
 
-This returns each token's midpoint price. For positions needing deeper analysis (large size, near stop-loss), also check spread and book depth:
+For positions near stop-loss or with large size, also check execution feasibility:
 ```bash
 ~/projects/thucydides/tools/polymarket.sh spread <yes_token_id>
-~/projects/thucydides/tools/polymarket.sh book <yes_token_id> --depth 5
 ```
 
-### Take Monitoring Snapshot
-For each position, calculate unrealized P&L from current price vs entry price, then record:
-```sql
-INSERT INTO market_snapshots (
-  prediction_id, market_slug, snapshot_type,
-  market_probability, our_position_size, unrealized_pnl,
-  market_metadata, created_at
-) VALUES (
-  [pred_id], '[slug]', 'monitoring', [current_midpoint], [our_size],
-  [position_size * (current_price - entry_price) / entry_price],
-  '{"clob_token_ids": {"yes": "<yes_token_id>", "no": "<no_token_id>"}}'::jsonb,
-  NOW()
-);
+### Record Monitoring for Each Position
+Calculate unrealized P&L: `pnl = bet_size * (current_price - entry_price) / entry_price`
+
+For each position with action `hold`:
+```bash
+~/projects/thucydides/tools/trading-db.sh monitor \
+  --prediction-id [pred_id] \
+  --slug "[market_slug]" \
+  --current-prob [current_midpoint] \
+  --our-size [bet_size] \
+  --pnl [unrealized_pnl] \
+  --edge [current_edge] \
+  --our-prob [our_probability] \
+  --action "hold" \
+  --action-reason "[why we're holding — edge status, market movement]" \
+  --yes-token "[yes_token_id]" \
+  --no-token "[no_token_id]" \
+  --shift [N]
 ```
 
-### Check Stop-Loss
-If position value has dropped by more than `stop_loss_pct` (default 50%):
-```sql
-INSERT INTO position_lifecycle (prediction_id, action, action_reason, ...)
-VALUES ([pred_id], 'exit', 'Stop loss triggered: position down [X]% from entry', ...);
-
-UPDATE predictions SET status = 'cancelled', updated_at = NOW() WHERE id = [pred_id];
+### Stop-Loss Exit
+If position value has dropped by more than `stop_loss_pct` (default 50%), use `--action "exit"`:
+```bash
+~/projects/thucydides/tools/trading-db.sh monitor \
+  --prediction-id [pred_id] \
+  --slug "[market_slug]" \
+  --current-prob [current_prob] \
+  --our-size [bet_size] \
+  --pnl [pnl] \
+  --action "exit" \
+  --action-reason "Stop loss triggered: position down [X]% from entry" \
+  --shift [N]
 ```
+This automatically sets the prediction status to 'cancelled'.
 
 ### Check Edge Deterioration
-If our edge has dropped below min_edge_threshold (due to market moving toward our probability):
-- Record in position_lifecycle as 'hold' with note about reduced edge
-- Consider exit if edge is near zero (market has "found" our price)
-- Use `polymarket.sh spread <yes_token_id>` to check if exit is feasible (spread cost)
+If edge has dropped below min_edge_threshold, note in `--action-reason` but still use `--action "hold"`. Consider exit if edge is near zero (market has "found" our price). Use `polymarket.sh spread <yes_token_id>` to check exit feasibility.
 
 ### Check for Resolution
-If market has resolved (current price is 0.00 or 1.00, or end_date has passed):
-- Verify actual outcome: `~/projects/thucydides/tools/polymarket.sh market <slug>` — check `closed` and `outcome_prices`
-- Move to Learning Phase
+If current price is 0.00 or 1.00, or end_date has passed:
+```bash
+~/projects/thucydides/tools/polymarket.sh market <slug>
+```
+Check `closed` and `outcome_prices`. If resolved, move to Learning Phase.
 
 ---
 
