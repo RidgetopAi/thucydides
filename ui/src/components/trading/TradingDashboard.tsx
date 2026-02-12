@@ -141,6 +141,8 @@ export function TradingDashboard() {
     ? `${formatDate(lastUpdated.toISOString())} ${lastUpdated.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
     : '—';
 
+  const pnlHistory = trading.pnlHistory ?? [];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -179,6 +181,12 @@ export function TradingDashboard() {
           </div>
         </div>
       </div>
+
+      {pnlHistory.length >= 2 && (
+        <div className="p-4 rounded-lg bg-surface border border-border-subtle">
+          <PnlChart data={pnlHistory} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -393,6 +401,121 @@ function Info({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</p>
       <p className="text-xs text-zinc-300">{value}</p>
+    </div>
+  );
+}
+
+function PnlChart({ data }: { data: { t: string; pnl: number; positions: number }[] }) {
+  if (data.length < 2) {
+    return (
+      <div className="flex items-center justify-center h-48 text-xs text-zinc-500">
+        Need at least 2 data points for P&L chart. Run more shifts.
+      </div>
+    );
+  }
+
+  const W = 600;
+  const H = 200;
+  const PAD = { top: 20, right: 16, bottom: 32, left: 56 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+
+  const pnls = data.map(d => d.pnl);
+  const minPnl = Math.min(0, ...pnls);
+  const maxPnl = Math.max(0, ...pnls);
+  const range = maxPnl - minPnl || 1;
+  const padded = range * 0.15;
+  const yMin = minPnl - padded;
+  const yMax = maxPnl + padded;
+  const yRange = yMax - yMin;
+
+  const toX = (i: number) => PAD.left + (i / (data.length - 1)) * plotW;
+  const toY = (v: number) => PAD.top + plotH - ((v - yMin) / yRange) * plotH;
+
+  const zeroY = toY(0);
+  const points = data.map((d, i) => ({ x: toX(i), y: toY(d.pnl), pnl: d.pnl, positions: d.positions, t: d.t }));
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+
+  // Area fill: split into positive (green) and negative (red) areas
+  const areaAbove = `${linePath} L${points[points.length - 1].x},${zeroY} L${points[0].x},${zeroY} Z`;
+
+  // Y-axis ticks
+  const tickCount = 5;
+  const yTicks = Array.from({ length: tickCount }, (_, i) => {
+    const val = yMin + (yRange * i) / (tickCount - 1);
+    return { val, y: toY(val) };
+  });
+
+  // X-axis labels (show first, last, and a couple in between)
+  const labelIndices = data.length <= 4
+    ? data.map((_, i) => i)
+    : [0, Math.floor(data.length / 3), Math.floor((2 * data.length) / 3), data.length - 1];
+
+  const formatTime = (t: string) => {
+    const d = new Date(t);
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  };
+
+  const lastPnl = data[data.length - 1].pnl;
+  const lastColor = lastPnl >= 0 ? '#3fb950' : '#f85149';
+
+  return (
+    <div>
+      <div className="flex items-baseline gap-3 mb-3">
+        <h3 className="text-sm font-medium text-zinc-200">Portfolio P&L</h3>
+        <span className="text-lg font-semibold" style={{ color: lastColor }}>
+          {lastPnl >= 0 ? '+' : ''}{formatCurrency(lastPnl)}
+        </span>
+        <span className="text-xs text-zinc-500">{data.length} snapshots</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: '240px' }}>
+        {/* Grid lines */}
+        {yTicks.map((tick, i) => (
+          <g key={i}>
+            <line
+              x1={PAD.left} y1={tick.y} x2={W - PAD.right} y2={tick.y}
+              stroke="#27272a" strokeWidth={tick.val === 0 ? 1.5 : 0.5}
+              strokeDasharray={tick.val === 0 ? undefined : '4,4'}
+            />
+            <text x={PAD.left - 8} y={tick.y + 4} textAnchor="end" fill="#71717a" fontSize="10">
+              ${tick.val.toFixed(2)}
+            </text>
+          </g>
+        ))}
+
+        {/* Zero line highlight */}
+        <line x1={PAD.left} y1={zeroY} x2={W - PAD.right} y2={zeroY} stroke="#3f3f46" strokeWidth={1} />
+
+        {/* Area fill with clip paths for positive/negative */}
+        <defs>
+          <clipPath id="above-zero">
+            <rect x={PAD.left} y={PAD.top} width={plotW} height={zeroY - PAD.top} />
+          </clipPath>
+          <clipPath id="below-zero">
+            <rect x={PAD.left} y={zeroY} width={plotW} height={PAD.top + plotH - zeroY} />
+          </clipPath>
+        </defs>
+        <path d={areaAbove} fill="#3fb950" opacity={0.1} clipPath="url(#above-zero)" />
+        <path d={areaAbove} fill="#f85149" opacity={0.1} clipPath="url(#below-zero)" />
+
+        {/* Line */}
+        <path d={linePath} fill="none" stroke={lastColor} strokeWidth={2} strokeLinejoin="round" />
+
+        {/* Data points */}
+        {points.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r={3.5} fill="#0d1117" stroke={p.pnl >= 0 ? '#3fb950' : '#f85149'} strokeWidth={2} />
+            <title>{formatTime(p.t)}: {p.pnl >= 0 ? '+' : ''}${p.pnl.toFixed(2)} ({p.positions} positions)</title>
+          </g>
+        ))}
+
+        {/* X-axis labels */}
+        {labelIndices.map((idx) => (
+          <text key={idx} x={toX(idx)} y={H - 4} textAnchor="middle" fill="#71717a" fontSize="9">
+            {formatTime(data[idx].t)}
+          </text>
+        ))}
+      </svg>
     </div>
   );
 }

@@ -1,6 +1,8 @@
-import { NavLink } from 'react-router-dom';
-import { Search, Database, BookOpen, GitBranch, Clock, LayoutDashboard } from 'lucide-react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Search, Database, BookOpen, GitBranch, Clock, LayoutDashboard, TrendingUp } from 'lucide-react';
 import { useTopic } from '../../lib/TopicContext';
+
+const POLYMARKET_VALUE = '__polymarket__';
 
 const links = [
   { to: '/search', label: 'Search', icon: Search },
@@ -9,11 +11,25 @@ const links = [
   { to: '/threads', label: 'Threads', icon: GitBranch },
   { to: '/shifts', label: 'Shifts', icon: Clock },
   { to: '/dashboard', label: 'Research', icon: LayoutDashboard },
-  { to: '/trading', label: 'Trading', icon: LayoutDashboard },
+  { to: '/trading', label: 'Trading', icon: TrendingUp },
 ];
 
 export function Sidebar() {
   const { topic, setTopic, topics } = useTopic();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isTrading = location.pathname === '/trading';
+  const displayValue = isTrading ? POLYMARKET_VALUE : topic;
+
+  const handleTopicChange = (value: string) => {
+    if (value === POLYMARKET_VALUE) {
+      setTopic('');
+      navigate('/trading');
+    } else {
+      setTopic(value);
+      if (isTrading) navigate('/dashboard');
+    }
+  };
 
   return (
     <aside className="w-48 shrink-0 bg-zinc-950 border-r border-border-subtle flex flex-col">
@@ -21,21 +37,21 @@ export function Sidebar() {
         <h1 className="text-lg font-semibold tracking-tight text-zinc-100">Thucydides</h1>
         <p className="text-xs text-zinc-500 mt-0.5">Research Database</p>
       </div>
-      {topics.length > 0 && (
-        <div className="px-3 pt-3 pb-1">
-          <label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block">Topic</label>
-          <select
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            className="w-full bg-surface border border-border rounded px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
-          >
-            <option value="">All Topics</option>
-            {topics.map((t) => (
-              <option key={t} value={t}>{t.replace(/-/g, ' ')}</option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div className="px-3 pt-3 pb-1">
+        <label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 block">Topic</label>
+        <select
+          value={displayValue}
+          onChange={(e) => handleTopicChange(e.target.value)}
+          className="w-full bg-surface border border-border rounded px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+        >
+          <option value="">All Topics</option>
+          {topics.map((t) => (
+            <option key={t} value={t}>{t.replace(/-/g, ' ')}</option>
+          ))}
+          <option disabled>───────────</option>
+          <option value={POLYMARKET_VALUE}>Polymarket</option>
+        </select>
+      </div>
       <nav className="flex-1 p-2 space-y-0.5">
         {links.map(({ to, label, icon: Icon }) => (
           <NavLink

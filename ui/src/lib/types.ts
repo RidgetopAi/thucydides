@@ -172,6 +172,11 @@ export interface Stats {
       edgeMin: number | null;
       edgeMax: number | null;
     }[];
+    pnlHistory: {
+      t: string;
+      pnl: number;
+      positions: number;
+    }[];
   };
 }
 

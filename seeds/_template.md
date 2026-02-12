@@ -1,5 +1,8 @@
 # Thucydides Research Seed - [TOPIC NAME]
 
+## Mode
+[history | skills | polymarket]
+
 ## Subject
 [What are we researching? One paragraph overview.]
 
@@ -64,11 +67,15 @@ Prioritize by priority. Pay special attention to disputed claims needing both-si
 ## AGENT DEPLOYMENT
 
 ### Read Agent Roles
-- `~/projects/thucydides/agents/scholar.md`
-- `~/projects/thucydides/agents/digger.md`
-- `~/projects/thucydides/agents/archivist.md`
-- `~/projects/thucydides/agents/jester.md`
-- `~/projects/thucydides/agents/judge.md`
+Load agents from the mode-specific directory:
+- `~/projects/thucydides/agents/[MODE]/scholar.md`
+- `~/projects/thucydides/agents/[MODE]/digger.md`
+- `~/projects/thucydides/agents/[MODE]/archivist.md`
+- `~/projects/thucydides/agents/[MODE]/jester.md`
+- `~/projects/thucydides/agents/[MODE]/judge.md`
+
+Also read the shared output protocol:
+- `~/projects/thucydides/agents/_shared/output-protocol.md`
 
 ### Spawn Research Agents (Parallel)
 **CRITICAL: Agents return findings TO YOU. They do NOT write to DB or Mandrel directly.**
@@ -87,7 +94,7 @@ Include in each agent prompt:
 ### Parse Agent Returns
 1. Parse structured output (ENTITY, RELATIONSHIP, SOURCE, THREAD, CLAIM)
 2. Deduplicate against existing DB entries
-3. **Build relationships** - every entity should connect to others
+3. **Build relationships** — every entity should connect to others
 4. Identify claims for Jester review
 
 ### Jester (Balanced Challenge)
@@ -107,28 +114,58 @@ Deploy only when agents directly contradict each other with evidence on both sid
 ## DATABASE WRITES
 
 ### SQL Batch Approach
-Build one SQL file, execute in one SSH call:
+Build one SQL file, execute in one SSH call. **Include mode='[MODE]' in all INSERT statements.**
+
 ```bash
 cat > /tmp/shift-N-batch.sql << 'SQLEOF'
 BEGIN;
--- All inserts here
+-- entities, relationships, sources, entity_sources, threads, shift report
+-- IMPORTANT: Include mode='[MODE]' in every INSERT
 COMMIT;
 SQLEOF
 scp /tmp/shift-N-batch.sql hetzner:/tmp/thuc-shift-N.sql
-ssh hetzner "PGPASSWORD=mandrel psql -U mandrel -h localhost -d thucydides -f /tmp/thuc-shift-N.sql"
+ssh hetzner "sudo -u postgres psql -d thucydides -f /tmp/thuc-shift-N.sql"
 ```
 
 ### Relationships (CRITICAL)
 Use subqueries to reference entities by name:
 ```sql
-INSERT INTO relationships (from_entity_id, to_entity_id, type, period, description, topic, run_name, shift_discovered, discovered_by, confidence)
+INSERT INTO relationships (mode, from_entity_id, to_entity_id, type, period, description, topic, run_name, shift_discovered, discovered_by, confidence)
 VALUES (
-  (SELECT id FROM entities WHERE name = 'Person A' AND topic = '[TOPIC_SLUG]'),
-  (SELECT id FROM entities WHERE name = 'Org B' AND topic = '[TOPIC_SLUG]'),
+  '[MODE]',
+  (SELECT id FROM entities WHERE name = 'Person A' AND topic = '[TOPIC_SLUG]' AND mode = '[MODE]'),
+  (SELECT id FROM entities WHERE name = 'Org B' AND topic = '[TOPIC_SLUG]' AND mode = '[MODE]'),
   'employed-by', '1945-1951', 'Description',
   '[TOPIC_SLUG]', '[RUN_NAME]', [SHIFT], 'agent', 0.8
 );
 ```
+
+### Entity-Source Linkages (CRITICAL — DO NOT SKIP)
+**Every entity must be linked to the sources that support it.** The `entity_sources` table connects entities to their evidence with specific claim text. This is the provenance chain — without it, no entity can be traced back to its evidence.
+
+For every entity you insert or update this shift, link it to its supporting source(s):
+```sql
+INSERT INTO entity_sources (entity_id, source_id, claim)
+VALUES (
+  (SELECT id FROM entities WHERE name = 'Person A' AND topic = '[TOPIC_SLUG]' AND mode = '[MODE]'),
+  (SELECT id FROM sources WHERE title = 'Source Title' AND topic = '[TOPIC_SLUG]' AND mode = '[MODE]'),
+  'Specific claim this source supports about this entity — use quotes, dates, numbers from the source'
+) ON CONFLICT DO NOTHING;
+```
+
+**Rules for entity-source linkages:**
+- Every new entity MUST have at least one source linked to it
+- The `claim` field should contain the SPECIFIC factual claim the source supports — not a vague summary
+- Good claim: `"Superforecasters updated their predictions 4x more often than average forecasters"`
+- Bad claim: `"Information about forecasting"`
+- If an entity has multiple sources, insert one row per source with the specific claim each source supports
+- When updating an existing entity with new information from a new source, add a new entity_sources row
+
+**Parse agent CLAIM lines into entity_sources rows.** Agents return structured CLAIM lines like:
+```
+CLAIM|Entity Name|Source Title|Specific claim text
+```
+Each of these maps directly to an `entity_sources` INSERT.
 
 ---
 
@@ -136,6 +173,7 @@ VALUES (
 
 Write to both DB (shift_reports table) and Mandrel (type: handoff). Include:
 - What this shift did
+- Mode and topic
 - Key findings
 - New entities & relationships
 - Disputed claims (both sides)
@@ -150,6 +188,7 @@ Write to both DB (shift_reports table) and Mandrel (type: handoff). Include:
 - **Don't rush.** More shifts available. Quality over speed.
 - **Relationships matter as much as entities.** Build the graph.
 - **Disputed claims are valuable.** They mark the interesting questions.
-- **Official sources have backstories too.** Challenge all narratives equally.
-- **Cross-topic awareness.** Note entities that might connect to other topics.
+- **Challenge all narratives equally.** Official, academic, and practitioner claims all have biases.
+- **Cross-topic and cross-mode awareness.** Note entities that might connect to other research.
 - **Leave clear handoffs.** Next shift should know exactly what to do.
+- **Mode awareness.** Use the entity types and relationship types appropriate for your mode (see `agents/_shared/output-protocol.md`).

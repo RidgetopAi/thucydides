@@ -29,10 +29,6 @@ router.get('/', async (req, res) => {
 
     const predictionFilters: string[] = ["p.mode = 'polymarket'"];
     const predictionParams: unknown[] = [];
-    if (topic) {
-      predictionParams.push(topic);
-      predictionFilters.push(`p.topic = $${predictionParams.length}`);
-    }
     const predictionWhere = `WHERE ${predictionFilters.join(' AND ')}`;
 
     const [entities, relationships, sources, threads, shifts, entityTypes, confidenceDistribution, threadStatuses] = await Promise.all([
@@ -76,6 +72,7 @@ router.get('/', async (req, res) => {
       shiftDecisions,
       shiftEdges,
       ruleSummary,
+      pnlHistoryRows,
     ] = await Promise.all([
       query<{ open_positions: string; resolved_positions: string; active_exposure: string }>(
         `SELECT
@@ -244,6 +241,28 @@ router.get('/', async (req, res) => {
          ORDER BY success_rate DESC NULLS LAST, confidence DESC
          LIMIT 8`
       ),
+      query<{ t: string; unrealized_pnl: string; positions: string }>(
+        `WITH first_entry AS (
+          SELECT MIN(ms.created_at) AS t
+          FROM market_snapshots ms
+          JOIN predictions p ON p.id = ms.prediction_id
+          WHERE p.mode = 'polymarket' AND ms.snapshot_type = 'entry'
+        ),
+        monitoring_rounds AS (
+          SELECT
+            date_trunc('minute', ms.created_at) AS t,
+            SUM(ms.unrealized_pnl) AS unrealized_pnl,
+            COUNT(DISTINCT ms.prediction_id) AS positions
+          FROM market_snapshots ms
+          JOIN predictions p ON p.id = ms.prediction_id
+          WHERE p.mode = 'polymarket' AND ms.snapshot_type = 'monitoring'
+          GROUP BY date_trunc('minute', ms.created_at)
+        )
+        SELECT t::text, 0 AS unrealized_pnl, 1 AS positions FROM first_entry WHERE t IS NOT NULL
+        UNION ALL
+        SELECT t::text, unrealized_pnl::text, positions::text FROM monitoring_rounds
+        ORDER BY t ASC`
+      ),
     ]);
 
     const shiftStatsMap = new Map<number, {
@@ -355,6 +374,11 @@ router.get('/', async (req, res) => {
           edgeMax: r.edge_max ? parseFloat(r.edge_max) : null,
         })),
         shiftStats,
+        pnlHistory: pnlHistoryRows.rows.map(r => ({
+          t: r.t,
+          pnl: parseFloat(r.unrealized_pnl),
+          positions: parseInt(r.positions),
+        })),
       },
     });
   } catch (err) {
