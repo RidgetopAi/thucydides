@@ -8,7 +8,8 @@ const links = [
   { to: '/sources', label: 'Sources', icon: BookOpen },
   { to: '/threads', label: 'Threads', icon: GitBranch },
   { to: '/shifts', label: 'Shifts', icon: Clock },
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/dashboard', label: 'Research', icon: LayoutDashboard },
+  { to: '/trading', label: 'Trading', icon: LayoutDashboard },
 ];
 
 export function Sidebar() {

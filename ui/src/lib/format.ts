@@ -54,3 +54,19 @@ export function formatDate(dateStr: string): string {
 export function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
 }
+
+export function formatCurrency(value: number, decimals = 2): string {
+  return value.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+export function formatNumber(value: number, decimals = 2): string {
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
