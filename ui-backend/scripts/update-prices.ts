@@ -161,6 +161,8 @@ function calculateEdge(
 }
 
 // Calculate unrealized PnL
+// CONVENTION: bet_price is always the YES price (market_probability at entry).
+// For NO positions, the entry NO price = 1 - bet_price.
 function calculateUnrealizedPnl(
   positionSide: 'yes' | 'no' | null,
   betSize: number | null,
@@ -171,19 +173,19 @@ function calculateUnrealizedPnl(
     return 0;
   }
 
-  // Calculate shares purchased: shares = bet_size / bet_price
-  // Current value: current_value = shares * current_price
-  // Unrealized PnL: current_value - bet_size
-
   if (positionSide === 'yes') {
+    // shares = bet_size / yes_price_at_entry
     const shares = betSize / betPrice;
     const currentValue = shares * currentPrice;
     return currentValue - betSize;
   } else {
-    // For NO position, shares = bet_size / (1 - bet_price)
-    // Current value = shares * (1 - current_price)
-    const noPrice = 1 - betPrice;
-    const shares = betSize / noPrice;
+    // bet_price = YES price at entry, so NO entry price = 1 - bet_price
+    const entryNoPrice = 1 - betPrice;
+    // Guard: if entryNoPrice is near zero, something is wrong
+    if (entryNoPrice < 0.001) {
+      return 0;
+    }
+    const shares = betSize / entryNoPrice;
     const currentNoPrice = 1 - currentPrice;
     const currentValue = shares * currentNoPrice;
     return currentValue - betSize;
@@ -293,17 +295,18 @@ async function updatePrices(): Promise<void> {
             WHERE id = $3
           `, [currentPrice, newEdge, prediction.id]);
 
-          // Insert monitoring snapshot
+          // Insert monitoring snapshot (include position size for portfolio query)
           await client.query(`
             INSERT INTO market_snapshots (
               prediction_id,
               market_slug,
               snapshot_type,
               market_probability,
+              our_position_size,
               unrealized_pnl,
               created_at
-            ) VALUES ($1, $2, $3, $4, $5, NOW())
-          `, [prediction.id, marketInfo.slug, 'monitoring', currentPrice, unrealizedPnl]);
+            ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+          `, [prediction.id, marketInfo.slug, 'monitoring', currentPrice, prediction.bet_size, unrealizedPnl]);
 
           await client.query('COMMIT');
 

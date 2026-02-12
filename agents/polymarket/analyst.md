@@ -94,3 +94,4 @@ ASSESSMENT|will-fed-cut-rates-march-2026|0.61|0.70|reference_class_forecasting, 
 - It's better to say "my estimate is 0.55 with confidence 0.4" than to pretend certainty you don't have.
 - If you cannot produce a meaningfully different estimate from 50%, say so. Some markets are genuinely hard to call.
 - Report entity IDs from the skills KB when you reference them (the orchestrator needs these for tracking).
+- **Near-certainty markets** (our estimate < 5% or > 95%): Being almost certain is NOT the same as having edge. If the market is already at 3% and you estimate 1%, your edge is only 2pp. State the edge explicitly — the orchestrator uses it for sizing, not your raw probability.

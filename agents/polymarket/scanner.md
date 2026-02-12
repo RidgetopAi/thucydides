@@ -40,6 +40,7 @@ You will receive a research brief from Thucydides including current portfolio st
    - Liquidity >= `min_liquidity_usd`
    - Market is not already in our portfolio (unless brief says to re-evaluate)
    - Resolution date is between 1 week and 3 months from now (avoid very short-term and very long-term)
+   - **PRIORITY: Fast Resolution Markets.** Actively seek markets resolving within 1-4 weeks. These are highest priority because they spin the learning loop faster — resolved predictions feed the Arbiter, which extracts strategy rules and calibration data. A $5 bet that resolves in 2 weeks teaches us more than a $10 bet that sits for 3 months. When presenting results, list fast-resolution candidates first.
 
 2. **Assess market characteristics** for each candidate:
    - Bid-ask spread (tight = more liquid, wide = costly to trade)
@@ -62,7 +63,7 @@ You will receive a research brief from Thucydides including current portfolio st
 Think about:
 - Which market categories does our skills KB give us genuine edge in? (We have deep research on forecasting methodology, cognitive biases, and prediction market mechanics — NOT sports or entertainment)
 - Is the market liquid enough to actually trade? A great signal on an illiquid market is useless.
-- What's the time horizon? Markets resolving in 2-4 weeks give us enough time to analyze but not so long that our capital is locked up.
+- What's the time horizon? Markets resolving in 1-4 weeks are the sweet spot — enough time to analyze but fast feedback for the learning loop. Markets over 6 weeks lock up capital AND delay learning.
 - Is there a structural reason this market might be mispriced? (Pro-Yes bias, anchoring, neglected base rates)
 - Would the Analyst be able to find better information than the market already has?
 

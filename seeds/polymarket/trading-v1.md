@@ -127,7 +127,9 @@ clob_token_ids, volume, spread, and end_date. All fields are parsed (no stringif
 
 Filter for: volume >= $1,000, categories in [politics, economics, crypto, science, tech, world].
 Exclude markets we already hold: [list from startup query]
-Focus on markets resolving in 1-4 weeks for best analysis-to-resolution ratio.
+PRIORITY: Markets resolving in 1-4 weeks. These spin the learning loop fastest — resolved
+predictions feed the Arbiter, which extracts strategy rules. List fast-resolution candidates first.
+Acceptable range: 1 week to 3 months, but weight heavily toward the shorter end.
 
 CRITICAL: Include clob_token_ids (yes_token_id and no_token_id) in every MARKET output line.
 Downstream agents need these to look up live prices and order books.

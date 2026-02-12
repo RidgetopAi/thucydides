@@ -118,3 +118,4 @@ LIMIT|drawdown|0.08|0.25|ok
 - If kill_switch is true, return LIMIT|kill_switch|true|false|exceeded and nothing else.
 - Round dollar sizes to 2 decimal places. We're not trading fractions of cents.
 - When in doubt, recommend smaller. We can always add to a position; we can't undo an overbet.
+- **Penny-odds warning**: For NO positions where the YES price is < 0.10 (i.e., we're paying > $0.90 per share), flag the asymmetry explicitly: max gain is small, max loss is the entire bet. The Certainty Override rule requires position price > 0.10 for this reason.
