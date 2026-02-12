@@ -258,7 +258,7 @@ router.get('/', async (req, res) => {
           WHERE p.mode = 'polymarket' AND ms.snapshot_type = 'monitoring'
           GROUP BY date_trunc('minute', ms.created_at)
         )
-        SELECT t::text, 0 AS unrealized_pnl, 1 AS positions FROM first_entry WHERE t IS NOT NULL
+        SELECT t::text, '0' AS unrealized_pnl, '1' AS positions FROM first_entry WHERE t IS NOT NULL
         UNION ALL
         SELECT t::text, unrealized_pnl::text, positions::text FROM monitoring_rounds
         ORDER BY t ASC`
