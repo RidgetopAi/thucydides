@@ -316,8 +316,10 @@ Returns: `{"prediction_id": 5, "market_slug": "...", "bet_size": 10}`
 
 This atomically creates: prediction row, entry market_snapshot (with token IDs), position_lifecycle entry, AND backfills agent_assessments.prediction_id for this market.
 
-### Record Skip/Watchlist
-For markets we evaluated but didn't trade:
+### Record Skip/Watchlist (with Shadow Prediction)
+For markets we evaluated but didn't trade, record the reasoning trace AND create a **shadow prediction** for counterfactual tracking. The cron price updater will track what happens to these markets, and the Arbiter will analyze outcomes when they resolve — so we learn whether our skip decisions were right.
+
+**Always include `--side`, `--question`, `--category`, and token IDs** so the shadow prediction can be tracked:
 ```bash
 ~/projects/thucydides/tools/trading-db.sh record-skip \
   --slug "[market_slug]" \
@@ -325,8 +327,17 @@ For markets we evaluated but didn't trade:
   --reasoning "[why we're not trading — be specific]" \
   --market-prob [market_probability] \
   --our-prob [our_probability] \
-  --shift [N]
+  --shift [N] \
+  --question "[market question]" \
+  --category "[category]" \
+  --side [YES/NO] \
+  --bet-size [what Sentinel recommended, or 5 if no sizing done] \
+  --yes-token "[yes_token_id]" \
+  --no-token "[no_token_id]"
 ```
+Returns: `{"trace_id": 73, "shadow_prediction_id": 9, "decision": "skip", "market_slug": "..."}`
+
+The shadow prediction (`status='shadow'`) uses the same schema as active predictions. The cron updates its price and PnL automatically. When the market resolves, the Arbiter analyzes real AND shadow outcomes together.
 
 ---
 
@@ -439,7 +450,25 @@ Arbiter receives:
 - Original prediction with full reasoning
 - All agent_assessments for this prediction
 - The actual outcome and P&L
-- "Analyze what happened. Which agent was most accurate? What did we miss? Propose strategy rules if applicable."
+- **Shadow predictions for the same market** (if any): counterfactual P&L, the skip/watchlist reasoning, linked reasoning_trace
+- "Analyze what happened. Which agent was most accurate? What did we miss? Propose strategy rules if applicable. For shadow predictions, evaluate whether the skip decision was correct."
+
+#### Query Shadow Resolutions
+Check for shadow predictions that have resolved (market price hit 0.00 or 1.00, or end_date passed):
+```bash
+ssh hetzner "sudo -u postgres psql -d thucydides -c \"
+SELECT p.id, p.market_id, p.question, p.position_side, p.bet_size,
+  p.prediction_probability, p.market_probability, p.edge,
+  p.current_market_prob, p.shift_number,
+  rt.decision_reasoning as skip_reason
+FROM predictions p
+LEFT JOIN reasoning_traces rt ON rt.prediction_id = p.id AND rt.decision IN ('skip', 'watchlist')
+WHERE p.status = 'shadow' AND p.mode = 'polymarket'
+  AND (p.current_market_prob <= 0.01 OR p.current_market_prob >= 0.99)
+ORDER BY p.id;
+\""
+```
+For each resolved shadow, update it and record the counterfactual outcome just like a real prediction.
 
 ### 4. Record Arbiter's Findings
 - Store LESSON outputs as reasoning_traces (trace_type='learning')

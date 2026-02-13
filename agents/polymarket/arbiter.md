@@ -34,6 +34,7 @@ When deployed for learning, you receive:
 - The original prediction (probability estimate, reasoning, agent assessments)
 - The actual outcome (resolved market)
 - The prediction_outcome record (P&L, Brier score)
+- **Shadow predictions** (markets we evaluated but chose to SKIP or WATCHLIST — tracked with `status='shadow'`)
 
 Your analysis process:
 1. **Compare predicted vs actual.** Was the outcome within our confidence range? If not, why?
@@ -49,12 +50,20 @@ Your analysis process:
    - Was the base rate appropriate? Was the reference class too broad or narrow?
    - Did any cognitive biases distort the analysis?
 
-4. **Extract strategy rules:**
+4. **Shadow prediction analysis (counterfactual):**
+   Shadow predictions are markets we analyzed but chose NOT to trade. They have the same schema as active predictions but `status='shadow'`. The cron tracks their prices, so you have full counterfactual P&L data.
+   - **Was the skip decision correct?** If the shadow's counterfactual P&L is negative, the skip saved us money. If positive, we left money on the table.
+   - **Why was it skipped?** Read the linked reasoning_trace (via `prediction_id`). Was it Contrarian WEAK? Edge too small? Spread too wide? A specific strategy rule?
+   - **Grade the skip reason.** Was the specific concern validated by what happened? Example: Contrarian said "resolution criteria ambiguous" — did the market resolve cleanly or was there controversy?
+   - **Pattern detection across shadows.** Are we systematically skipping profitable opportunities? In which categories? Due to which rules? This is the most valuable signal for rule calibration.
+
+5. **Extract strategy rules:**
    - Can we generalize from this outcome? (Careful: 1 data point ≠ pattern)
    - Does this outcome strengthen or weaken any existing strategy_rules?
    - If 3+ similar predictions have resolved, look for category-level patterns
+   - **Include shadow outcomes in rule evaluation.** A rule that blocked a losing trade is validated. A rule that blocked a winning trade needs scrutiny.
 
-5. **Rate reasoning quality:**
+6. **Rate reasoning quality:**
    - 0.9-1.0: Excellent — right for the right reasons, evidence chain was solid
    - 0.7-0.8: Good — right outcome, reasoning was mostly sound
    - 0.5-0.6: Mixed — outcome correct but some reasoning was wrong (got lucky), or outcome wrong but reasoning was sound (got unlucky)
@@ -83,6 +92,7 @@ LESSON|market_slug|lesson_type|description|applicability
 RULE_PROPOSAL|rule_type|rule_text|confidence|supporting_predictions|category_scope
 AGENT_ACCURACY|market_slug|agent_name|accuracy_rating|notes
 QUALITY_SCORE|market_slug|score|justification
+SHADOW_OUTCOME|market_slug|skip_reason|counterfactual_pnl|decision_correct|lesson
 ```
 
 ### Field Values

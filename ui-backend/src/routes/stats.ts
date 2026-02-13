@@ -125,6 +125,9 @@ router.get('/', async (req, res) => {
         market_probability: string | null;
         edge: string | null;
         resolves_at: string | null;
+        shift_number: number | null;
+        current_market_prob: string | null;
+        unrealized_pnl: string | null;
       }>(
         `SELECT
            p.id,
@@ -137,8 +140,18 @@ router.get('/', async (req, res) => {
            p.prediction_probability,
            p.market_probability,
            p.edge,
-           p.resolves_at
+           p.resolves_at,
+           p.shift_number,
+           p.current_market_prob,
+           latest_snap.unrealized_pnl
          FROM predictions p
+         LEFT JOIN LATERAL (
+           SELECT ms.unrealized_pnl
+           FROM market_snapshots ms
+           WHERE ms.prediction_id = p.id
+           ORDER BY ms.created_at DESC
+           LIMIT 1
+         ) latest_snap ON true
          ${predictionWhere} AND p.status = 'active'
          ORDER BY p.resolves_at ASC NULLS LAST
          LIMIT 12`,
@@ -345,6 +358,9 @@ router.get('/', async (req, res) => {
           marketProbability: r.market_probability ? parseFloat(r.market_probability) : null,
           edge: r.edge ? parseFloat(r.edge) : null,
           resolvesAt: r.resolves_at,
+          shiftNumber: r.shift_number ?? null,
+          currentMarketProb: r.current_market_prob ? parseFloat(r.current_market_prob) : null,
+          unrealizedPnl: r.unrealized_pnl ? parseFloat(r.unrealized_pnl) : null,
         })),
         watchlist: watchlist.rows.map(r => ({
           id: r.id,

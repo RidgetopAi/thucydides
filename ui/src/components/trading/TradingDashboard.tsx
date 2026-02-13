@@ -282,18 +282,29 @@ export function TradingDashboard() {
                       <p className="text-sm text-zinc-100 leading-snug">{pos.question}</p>
                       <p className="text-xs text-zinc-500">{pos.marketId}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs text-zinc-400">Edge</p>
-                      <p className={`text-sm font-semibold ${pos.edge && pos.edge > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {pos.edge != null ? formatNumber(pos.edge, 2) : 'n/a'}
-                      </p>
+                    <div className="flex items-start gap-4">
+                      {pos.unrealizedPnl != null && (
+                        <div className="text-right">
+                          <p className="text-xs text-zinc-400">P&L</p>
+                          <p className={`text-sm font-semibold ${pos.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {pos.unrealizedPnl >= 0 ? '+' : ''}{formatCurrency(pos.unrealizedPnl)}
+                          </p>
+                        </div>
+                      )}
+                      <div className="text-right">
+                        <p className="text-xs text-zinc-400">Edge</p>
+                        <p className={`text-sm font-semibold ${pos.edge && pos.edge > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {pos.edge != null ? formatNumber(pos.edge, 2) : 'n/a'}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-xs text-zinc-400">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-2 text-xs text-zinc-400">
                     <Info label="Side" value={pos.positionSide ?? '—'} />
                     <Info label="Size" value={pos.betSize != null ? formatCurrency(pos.betSize, 0) : '—'} />
                     <Info label="Our Prob" value={pct(pos.predictionProbability)} />
-                    <Info label="Market" value={pos.marketProbability != null ? pct(pos.marketProbability) : '—'} />
+                    <Info label="Market Now" value={pos.currentMarketProb != null ? pct(pos.currentMarketProb) : (pos.marketProbability != null ? pct(pos.marketProbability) : '—')} />
+                    <Info label="Shift" value={pos.shiftNumber != null ? `#${pos.shiftNumber}` : '—'} />
                   </div>
                   {pos.resolvesAt && (
                     <p className="mt-2 text-[11px] text-zinc-500">Resolves {formatDate(pos.resolvesAt)}</p>

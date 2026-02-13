@@ -61,6 +61,8 @@ ssh hetzner "sudo -u postgres psql -d thucydides -c 'YOUR QUERY'"
 
 **Key tables**: predictions, agent_assessments, market_snapshots, position_lifecycle, reasoning_traces, strategy_rules, trading_config, prediction_outcomes, shift_reports
 
+**Shadow predictions**: Skipped/watchlisted markets get `status='shadow'` predictions. Same schema as active trades — cron tracks their prices, Arbiter analyzes outcomes when they resolve. This gives us counterfactual data: "we skipped this, were we right?" Essential training data for model calibration.
+
 ## Trading Configuration
 
 - Mode: dry_run | $1,000 virtual bankroll

@@ -149,7 +149,7 @@ cmd_record_trade() {
   ) RETURNING id;"
 
   local pred_id
-  pred_id=$(run_sql "$pred_sql" | tr -d ' \n\r') || die "Failed to insert prediction"
+  pred_id=$(run_sql "$pred_sql" | head -1 | tr -d ' \n\r') || die "Failed to insert prediction"
   [[ -z "$pred_id" ]] && die "No prediction ID returned"
 
   # Step 2: Insert snapshot + lifecycle + backfill assessments
@@ -188,6 +188,7 @@ cmd_record_trade() {
 cmd_record_skip() {
   local slug="" decision="skip" reasoning="" shift="" market_prob=""
   local our_prob="" run_name="trading-v1"
+  local question="" category="" side="" bet_size="" yes_token="" no_token=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -198,6 +199,12 @@ cmd_record_skip() {
       --market-prob) market_prob="$2"; shift 2 ;;
       --our-prob) our_prob="$2"; shift 2 ;;
       --run-name) run_name="$2"; shift 2 ;;
+      --question) question="$2"; shift 2 ;;
+      --category) category="$2"; shift 2 ;;
+      --side) side="$2"; shift 2 ;;
+      --bet-size) bet_size="$2"; shift 2 ;;
+      --yes-token) yes_token="$2"; shift 2 ;;
+      --no-token) no_token="$2"; shift 2 ;;
       *) shift ;;
     esac
   done
@@ -205,32 +212,76 @@ cmd_record_skip() {
   [[ -z "$slug" ]] && die "Missing --slug"
   [[ -z "$shift" ]] && die "Missing --shift"
 
-  local s_slug s_decision s_reasoning s_run
+  local s_slug s_decision s_reasoning s_run s_question
   s_slug=$(sql_escape "$slug")
   s_decision=$(sql_escape "$decision")
   s_reasoning=$(sql_escape "${reasoning:-No edge found}")
   s_run=$(sql_escape "$run_name")
+  s_question=$(sql_escape "${question:-$slug}")
 
   local sql="INSERT INTO reasoning_traces (
     trace_type, phase, decision, decision_reasoning,
     confidence_at_decision,
-    input_context,
+    input_context, reasoning_steps,
     shift_number, run_name, created_at
   ) VALUES (
     'pre_trade', 'decision', '${s_decision}', '${s_reasoning}',
     0,
-    json_build_object(
-      'market', json_build_object(
-        'slug', '${s_slug}',
-        'probability', ${market_prob:-0}
-      )
-    )::jsonb,
+    '{\"market\": {\"slug\": \"${s_slug}\", \"question\": \"${s_question}\", \"probability\": ${market_prob:-0}, \"liquidity\": 0}}'::jsonb,
+    '[]'::jsonb,
     ${shift}, '${s_run}', NOW()
   ) RETURNING id;"
 
   local trace_id
-  trace_id=$(run_sql "$sql" | tr -d ' \n\r') || die "Failed to insert reasoning trace"
-  echo "{\"trace_id\": ${trace_id}, \"decision\": \"${decision}\", \"market_slug\": \"${slug}\"}"
+  trace_id=$(run_sql "$sql" | head -1 | tr -d ' \n\r') || die "Failed to insert reasoning trace"
+
+  # If position data provided (--side), also create a shadow prediction for counterfactual tracking
+  local shadow_id=""
+  if [[ -n "$side" && -n "$our_prob" && -n "$market_prob" ]]; then
+    local s_category s_side
+    s_category=$(sql_escape "${category:-uncategorized}")
+    s_side=$(sql_escape "$side")
+    local shadow_bet="${bet_size:-5}"
+
+    local shadow_sql="INSERT INTO predictions (
+      mode, market_id, question, category,
+      prediction_probability, market_probability, edge,
+      confidence_reasoning, bet_size, bet_price, position_side,
+      status, shift_number, run_name, predicted_at
+    ) VALUES (
+      'polymarket', '${s_slug}', '${s_question}', '${s_category}',
+      ${our_prob}, ${market_prob}, ${our_prob} - ${market_prob},
+      '${s_reasoning}', ${shadow_bet}, ${market_prob}, '${s_side}',
+      'shadow', ${shift}, '${s_run}', NOW()
+    ) RETURNING id;"
+
+    shadow_id=$(run_sql "$shadow_sql" | head -1 | tr -d ' \n\r') || die "Failed to insert shadow prediction"
+
+    # Create entry snapshot so cron can track this market, and link reasoning trace
+    local snap_sql="INSERT INTO market_snapshots (
+      prediction_id, market_slug, snapshot_type,
+      market_probability, our_position_size, unrealized_pnl,
+      market_metadata, created_at
+    ) VALUES (
+      ${shadow_id}, '${s_slug}', 'entry',
+      ${market_prob}, ${shadow_bet}, 0,
+      '{\"clob_token_ids\": {\"yes\": \"${yes_token}\", \"no\": \"${no_token}\"}}'::jsonb,
+      NOW()
+    );"
+
+    run_sql "$snap_sql" > /dev/null || die "Failed to create shadow snapshot"
+
+    if [[ -n "$trace_id" ]]; then
+      local link_sql="UPDATE reasoning_traces SET prediction_id = ${shadow_id} WHERE id = ${trace_id};"
+      run_sql "$link_sql" > /dev/null || true
+    fi
+  fi
+
+  if [[ -n "$shadow_id" ]]; then
+    echo "{\"trace_id\": ${trace_id:-0}, \"shadow_prediction_id\": ${shadow_id}, \"decision\": \"${decision}\", \"market_slug\": \"${slug}\"}"
+  else
+    echo "{\"trace_id\": ${trace_id:-0}, \"decision\": \"${decision}\", \"market_slug\": \"${slug}\"}"
+  fi
 }
 
 cmd_monitor() {
@@ -337,7 +388,7 @@ cmd_shift_report() {
   RETURNING id;"
 
   local report_id
-  report_id=$(run_sql "$sql" | tr -d ' \n\r') || die "Failed to insert shift report"
+  report_id=$(run_sql "$sql" | head -1 | tr -d ' \n\r') || die "Failed to insert shift report"
   echo "{\"shift_report_id\": ${report_id}, \"shift\": ${shift}}"
 }
 
@@ -376,6 +427,12 @@ RECORD-SKIP ARGS:
   --market-prob <float>              Market price
   --our-prob <float>                 Our probability estimate
   --shift <int>                      Shift number (required)
+  --question <text>                  Market question (for shadow prediction)
+  --category <text>                  Market category (for shadow prediction)
+  --side <YES|NO>                    Position side we would have taken (triggers shadow creation)
+  --bet-size <float>                 Hypothetical bet size (default: 5)
+  --yes-token <token_id>             CLOB YES token ID (for shadow price tracking)
+  --no-token <token_id>              CLOB NO token ID (for shadow price tracking)
 
 MONITOR ARGS:
   --prediction-id <int>              Prediction ID (required)

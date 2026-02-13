@@ -134,6 +134,9 @@ export interface Stats {
       marketProbability: number | null;
       edge: number | null;
       resolvesAt: string | null;
+      shiftNumber: number | null;
+      currentMarketProb: number | null;
+      unrealizedPnl: number | null;
     }[];
     watchlist: {
       id: number;

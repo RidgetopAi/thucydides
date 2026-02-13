@@ -228,12 +228,12 @@ async function updatePrices(): Promise<void> {
         prediction_probability,
         current_market_prob
       FROM predictions
-      WHERE status = 'active' AND mode = 'polymarket'
+      WHERE status IN ('active', 'shadow') AND mode = 'polymarket'
       ORDER BY id
     `);
 
     const predictions = predictionsResult.rows;
-    log('INFO', `Found ${predictions.length} active polymarket predictions`);
+    log('INFO', `Found ${predictions.length} active/shadow polymarket predictions`);
 
     if (predictions.length === 0) {
       log('INFO', 'No active predictions to update');
