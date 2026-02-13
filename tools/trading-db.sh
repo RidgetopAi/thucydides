@@ -4,6 +4,7 @@
 #
 # Commands:
 #   portfolio                    Get full portfolio state as JSON
+#   record-assessment [--args]   Record agent assessment (scanner, analyst, etc.)
 #   record-trade [--args]        Atomic: prediction + snapshot + lifecycle + backfill
 #   record-skip [--args]         Record skip/watchlist reasoning trace
 #   monitor [--args]             Record monitoring snapshot for a position
@@ -94,6 +95,88 @@ cmd_portfolio() {
   local result
   result=$(run_sql "$sql") || die "Failed to query portfolio"
   echo "$result" | jq '.'
+}
+
+cmd_record_assessment() {
+  local slug="" agent="" role="" type="" probability="" confidence=""
+  local reasoning="" methodology="" biases="" dissent="false"
+  local dissent_reasoning="" shift="" run_name="trading-v1"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --slug) slug="$2"; shift 2 ;;
+      --agent) agent="$2"; shift 2 ;;
+      --role) role="$2"; shift 2 ;;
+      --type) type="$2"; shift 2 ;;
+      --probability) probability="$2"; shift 2 ;;
+      --confidence) confidence="$2"; shift 2 ;;
+      --reasoning) reasoning="$2"; shift 2 ;;
+      --methodology) methodology="$2"; shift 2 ;;
+      --biases) biases="$2"; shift 2 ;;
+      --dissent) dissent="true"; shift ;;
+      --dissent-reasoning) dissent_reasoning="$2"; shift 2 ;;
+      --shift) shift="$2"; shift 2 ;;
+      --run-name) run_name="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  [[ -z "$slug" ]] && die "Missing --slug"
+  [[ -z "$agent" ]] && die "Missing --agent"
+  [[ -z "$role" ]] && die "Missing --role"
+  [[ -z "$type" ]] && die "Missing --type"
+  [[ -z "$reasoning" ]] && die "Missing --reasoning"
+  [[ -z "$shift" ]] && die "Missing --shift"
+
+  local s_slug s_agent s_role s_type s_reasoning s_run s_dissent_reasoning
+  s_slug=$(sql_escape "$slug")
+  s_agent=$(sql_escape "$agent")
+  s_role=$(sql_escape "$role")
+  s_type=$(sql_escape "$type")
+  s_reasoning=$(sql_escape "$reasoning")
+  s_run=$(sql_escape "$run_name")
+  s_dissent_reasoning=$(sql_escape "${dissent_reasoning:-}")
+
+  # Build probability and confidence SQL fragments (nullable)
+  local prob_val="NULL"
+  [[ -n "$probability" ]] && prob_val="$probability"
+  local conf_val="NULL"
+  [[ -n "$confidence" ]] && conf_val="$confidence"
+
+  # Convert comma-separated lists to PostgreSQL arrays
+  local method_val="NULL"
+  if [[ -n "$methodology" ]]; then
+    local method_arr
+    method_arr=$(echo "$methodology" | sed "s/,/','/g")
+    method_val="ARRAY['${method_arr}']"
+  fi
+
+  local bias_val="NULL"
+  if [[ -n "$biases" ]]; then
+    local bias_arr
+    bias_arr=$(echo "$biases" | sed "s/,/','/g")
+    bias_val="ARRAY['${bias_arr}']"
+  fi
+
+  local sql="INSERT INTO agent_assessments (
+    market_slug, agent_name, agent_role, assessment_type,
+    probability_estimate, confidence, reasoning_text,
+    methodology_used, biases_considered,
+    dissent_from_consensus, dissent_reasoning,
+    run_name, shift_number, created_at
+  ) VALUES (
+    '${s_slug}', '${s_agent}', '${s_role}', '${s_type}',
+    ${prob_val}, ${conf_val}, '${s_reasoning}',
+    ${method_val}, ${bias_val},
+    ${dissent}, $(if [[ -n "$dissent_reasoning" ]]; then echo "'${s_dissent_reasoning}'"; else echo "NULL"; fi),
+    '${s_run}', ${shift}, NOW()
+  ) RETURNING id;"
+
+  local assessment_id
+  assessment_id=$(run_sql "$sql" | head -1 | tr -d ' \n\r') || die "Failed to insert assessment"
+  [[ -z "$assessment_id" ]] && die "No assessment ID returned"
+
+  echo "{\"assessment_id\": ${assessment_id}, \"agent_name\": \"${agent}\", \"market_slug\": \"${slug}\"}"
 }
 
 cmd_record_trade() {
@@ -401,10 +484,26 @@ USAGE:
 
 COMMANDS:
   portfolio                          Get full portfolio state as JSON
+  record-assessment [--args]         Record agent assessment (scanner, analyst, etc.)
   record-trade [--args]              Record new trade (atomic: prediction + snapshot + lifecycle)
   record-skip [--args]               Record skip/watchlist reasoning trace
   monitor [--args]                   Record monitoring snapshot + lifecycle entry
   shift-report [--args]              Record shift report
+
+RECORD-ASSESSMENT ARGS:
+  --slug <market_slug>               Market slug (required)
+  --agent <name>                     Agent name: scanner, analyst, sentinel, contrarian, arbiter (required)
+  --role <role>                      Agent role: market_scanner, probability_estimator, etc. (required)
+  --type <type>                      Assessment type: market_scan, probability_estimate, etc. (required)
+  --probability <float>              Probability estimate
+  --confidence <float>               Confidence level
+  --reasoning <text>                 Full reasoning text (required)
+  --methodology <csv>                Comma-separated methodologies (e.g. "bayesian_updating,fermi")
+  --biases <csv>                     Comma-separated biases considered
+  --dissent                          Flag: this agent dissents from consensus
+  --dissent-reasoning <text>         Dissent reasoning text
+  --shift <int>                      Shift number (required)
+  --run-name <name>                  Run name (default: trading-v1)
 
 RECORD-TRADE ARGS:
   --slug <market_slug>               Market slug (required)
@@ -457,6 +556,7 @@ SHIFT-REPORT ARGS:
 NOTES:
   - All SQL is piped via stdin to psql (no SSH quoting issues)
   - String values are automatically escaped for SQL safety
+  - record-assessment stores agent output BEFORE trade decision (prediction_id backfilled by record-trade)
   - record-trade is atomic: creates prediction, snapshot, lifecycle, and backfills agent_assessments
   - portfolio returns comprehensive JSON for agent brief construction
   - Output is JSON for machine consumption
@@ -466,11 +566,12 @@ EOF
 # --- Dispatch ---
 
 case "${1:-help}" in
-  portfolio)     shift; cmd_portfolio "$@" ;;
-  record-trade)  shift; cmd_record_trade "$@" ;;
-  record-skip)   shift; cmd_record_skip "$@" ;;
-  monitor)       shift; cmd_monitor "$@" ;;
-  shift-report)  shift; cmd_shift_report "$@" ;;
+  portfolio)          shift; cmd_portfolio "$@" ;;
+  record-assessment)  shift; cmd_record_assessment "$@" ;;
+  record-trade)       shift; cmd_record_trade "$@" ;;
+  record-skip)        shift; cmd_record_skip "$@" ;;
+  monitor)            shift; cmd_monitor "$@" ;;
+  shift-report)       shift; cmd_shift_report "$@" ;;
   help|--help|-h) cmd_help ;;
   *)             echo "Unknown command: $1" >&2; cmd_help; exit 1 ;;
 esac

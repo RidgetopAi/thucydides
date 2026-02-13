@@ -185,25 +185,51 @@ Sentinel's brief includes:
 4. **CLOB token IDs** for each proposed market: yes_token_id=`<token>`, no_token_id=`<token>` — use `~/projects/thucydides/tools/polymarket.sh spread` and `book` for execution feasibility
 4. Market liquidity and spread data from Scanner
 
-### Store Agent Assessments
-For EACH agent output, write to `agent_assessments`:
-```sql
-INSERT INTO agent_assessments (
-  market_slug, agent_name, agent_role, assessment_type,
-  probability_estimate, confidence, reasoning_text,
-  methodology_used, skills_entities_referenced,
-  evidence_cited, biases_considered,
-  run_name, shift_number, created_at
-) VALUES (
-  '[slug]', '[agent]', '[role]', '[type]',
-  [prob], [conf], '[full reasoning text]',
-  ARRAY['[method1]', '[method2]'],
-  ARRAY[[entity_id1], [entity_id2]],
-  '[evidence json]'::jsonb,
-  ARRAY['[bias1]', '[bias2]'],
-  'trading-v1', [N], NOW()
-);
+### Store Agent Assessments (MANDATORY)
+For EACH agent deployed in Phase 2, record their assessment using the helper script. This is the core training data pipeline — **do NOT skip this step**.
+
+**Scanner assessment:**
+```bash
+~/projects/thucydides/tools/trading-db.sh record-assessment \
+  --slug "market-slug-here" \
+  --agent "scanner" \
+  --role "market_scanner" \
+  --type "market_scan" \
+  --reasoning "Scanner's full analysis: market signals, liquidity assessment, category fit, resolution timeline..." \
+  --methodology "reference_class_forecasting" \
+  --shift [N]
 ```
+
+**Analyst assessment (one per market):**
+```bash
+~/projects/thucydides/tools/trading-db.sh record-assessment \
+  --slug "market-slug-here" \
+  --agent "analyst" \
+  --role "probability_estimator" \
+  --type "probability_estimate" \
+  --probability 0.35 \
+  --confidence 0.70 \
+  --reasoning "Full analyst reasoning: base rate estimation, evidence updates, final probability..." \
+  --methodology "reference_class_forecasting,bayesian_updating,fermi_decomposition" \
+  --biases "base_rate_neglect,anchoring,pro_yes_bias" \
+  --shift [N]
+```
+
+**Sentinel assessment:**
+```bash
+~/projects/thucydides/tools/trading-db.sh record-assessment \
+  --slug "market-slug-here" \
+  --agent "sentinel" \
+  --role "risk_manager" \
+  --type "risk_assessment" \
+  --confidence 0.80 \
+  --reasoning "Risk assessment: position sizing, portfolio correlation, liquidity check, stop-loss levels..." \
+  --methodology "kelly_criterion,fractional_kelly" \
+  --shift [N]
+```
+
+### **CHECKPOINT: Assessment Verification**
+**Do NOT proceed to Phase 3 until you have called `record-assessment` for every agent deployed in Phase 2.** Verify by counting: you should have at minimum one Scanner assessment + one Analyst assessment per market analyzed, plus one Sentinel assessment. If any are missing, go back and record them now.
 
 ---
 
@@ -223,6 +249,28 @@ Contrarian's brief includes:
 - **disputed** (significant concerns) → Reduce size to 50% of Sentinel's recommendation OR skip
 - **weak** (major flaws) → SKIP this market
 - For accept/qualify/dispute/investigate: same handling as Jester in skills mode
+
+### Store Contrarian Assessments (MANDATORY)
+For each Contrarian deployed, record the assessment:
+```bash
+~/projects/thucydides/tools/trading-db.sh record-assessment \
+  --slug "market-slug-here" \
+  --agent "contrarian" \
+  --role "adversarial_challenger" \
+  --type "adversarial_challenge" \
+  --probability 0.50 \
+  --confidence 0.65 \
+  --reasoning "Contrarian's full challenge: disconfirming evidence, resolution risks, reasoning flaws found..." \
+  --methodology "outside_then_inside_view,contrarian_trading_strategy" \
+  --biases "overconfidence,informational_cascade" \
+  --dissent \
+  --dissent-reasoning "Key disagreement: [specific point of contention with Analyst]" \
+  --shift [N]
+```
+Use `--dissent` flag when the Contrarian's assessment is "disputed" or "weak" (i.e., they disagree with the Analyst's trade thesis).
+
+### **CHECKPOINT: Contrarian Assessment Verification**
+**Do NOT proceed to Phase 4 until you have recorded a Contrarian assessment for every market that received a Contrarian challenge.** Missing Contrarian assessments destroy the most valuable training signal — agent disagreements.
 
 ### Deploy Arbiter (RARE - only if needed)
 Only deploy if Analyst and Contrarian both have strong evidence and irreconcilable positions. Most of the time, the orchestrator resolves disagreements through sizing.
