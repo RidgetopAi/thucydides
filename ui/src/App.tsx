@@ -9,7 +9,6 @@ import { SourceDetail } from './components/sources/SourceDetail';
 import { ThreadBoard, ThreadDetail } from './components/threads/ThreadBoard';
 import { ShiftTimeline, ShiftDetail } from './components/shifts/ShiftTimeline';
 import { Dashboard } from './components/dashboard/Dashboard';
-import { TradingDashboard } from './components/trading/TradingDashboard';
 
 export default function App() {
   return (
@@ -28,7 +27,6 @@ export default function App() {
           <Route path="/shifts" element={<ShiftTimeline />} />
           <Route path="/shifts/:id" element={<ShiftDetail />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/trading" element={<TradingDashboard />} />
         </Route>
       </Routes>
       </TopicProvider>
