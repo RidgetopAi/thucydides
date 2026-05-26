@@ -1,7 +1,7 @@
 # Thucydides Research Seed - [TOPIC NAME]
 
 ## Mode
-[history | skills | polymarket]
+[history | skills | polymarket | opportunity]
 
 ## Subject
 [What are we researching? One paragraph overview.]

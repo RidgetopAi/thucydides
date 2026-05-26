@@ -42,6 +42,11 @@ RECOMMENDATION|action_to_take|description
 - **Entity types**: market, prediction, indicator, signal, analyst, resolution, category, timeframe, model, strategy
 - **Relationship types**: predicts, contradicts, supports, correlates_with, informed_by, resolved_as, outperformed, underperformed, derived_from, calibrated_by
 
+### Opportunity Mode
+- **Entity types**: niche, business, geography, query, pain_signal, offer, channel, competitor, compliance_rule, metric, experiment
+- **Relationship types**: serves, located_in, searched_by, has_gap, competes_with, improves, measured_by, contacted_via, requires, supports, contradicts, converts_to, tested_by, violates
+- **Source types**: official, business_profile, website, search_result, review_platform, pagespeed, public_directory, competitor_site, regulation, market_report, operator_observation
+
 ## Polymarket Trading Output Lines
 
 Polymarket mode uses specialized agents (Scanner, Analyst, Sentinel, Contrarian, Arbiter) with trading-specific output lines:
